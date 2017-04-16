@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
 import hello
-print (hello("h").greet())
+
+t = hello.World()
+t.set("bom dia!")
+print (t.greet())
+
 
