@@ -95,9 +95,9 @@ static bool SendRequestSync( sourcekitd_object_t request, HandlerFunc func ) {
 std::vector<std::string> DefaultOSXArgs() {
   return {
     "-sdk",
-    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk",
+    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
     "-target",
-    "x86_64-apple-macosx10.11",
+    "x86_64-apple-macosx10.12",
   };
 }
 
