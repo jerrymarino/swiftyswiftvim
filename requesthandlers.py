@@ -16,7 +16,6 @@ from jedihttp import utils
 utils.AddVendorFolderToSysPath()
 
 import contextlib
-import jedi
 import logging
 import json
 import bottle
@@ -30,6 +29,24 @@ try:
 except ImportError:
   from http import client as httplib
 
+def Sema_preload_module(modules):
+    print("UNIMP")
+
+Sema_settings = {}
+
+def Sema_Script(  source,
+                      line,
+                      col,
+                      source_path):
+    print("UNIMP")
+
+def Sema_names(source,
+                     path,
+                     all_scopes,
+                     definitions,
+                     references):
+    print("UNIMP")
+
 
 # num bytes for the request body buffer; request.json only works if the request
 # size is less than this
@@ -41,26 +58,11 @@ app = Bottle( __name__ )
 # Jedi is not thread safe.
 jedi_lock = Lock()
 
-# For efficiency, we store the default values of the global Jedi settings. See
-# https://jedi.readthedocs.io/en/latest/docs/settings.html
+# For efficiency, we store the default values of the global Jedi settings. ##
+# TODO?
 default_settings = {
-    'case_insensitive_completion'     :
-        jedi.settings.case_insensitive_completion,
-    'add_bracket_after_function'      :
-        jedi.settings.add_bracket_after_function,
-    'no_completion_duplicates'        : jedi.settings.no_completion_duplicates,
-    'cache_directory'                 : jedi.settings.cache_directory,
-    'use_filesystem_cache'            : jedi.settings.cache_directory,
-    'fast_parser'                     : jedi.settings.fast_parser,
-    'dynamic_array_additions'         : jedi.settings.dynamic_array_additions,
-    'dynamic_params'                  : jedi.settings.dynamic_params,
-    'dynamic_params_for_other_modules':
-        jedi.settings.dynamic_params_for_other_modules,
-    'additional_dynamic_modules'      :
-        jedi.settings.additional_dynamic_modules,
-    'auto_import_modules'             : jedi.settings.auto_import_modules
+    'case_insensitive_completion'     : "",
 }
-
 
 @app.post( '/healthy' )
 def healthy():
@@ -136,7 +138,7 @@ def preload_module():
   with jedi_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
-      jedi.preload_module( *request_json[ 'modules' ] )
+      Sema_preload_module( *request_json[ 'modules' ] )
   return _JsonResponse( True )
 
 
@@ -172,14 +174,14 @@ def _FormatDefinitions( definitions ):
 
 
 def _GetJediScript( request_data ):
-  return jedi.Script( request_data[ 'source' ],
+  return Sema_Script( request_data[ 'source' ],
                       request_data[ 'line' ],
                       request_data[ 'col' ],
                       request_data[ 'source_path' ] )
 
 
 def _GetJediNames( request_data ):
-  return jedi.names( source = request_data[ 'source' ],
+  return Sema_names( source = request_data[ 'source' ],
                      path = request_data[ 'path' ],
                      all_scopes = request_data.get( 'all_scopes', False ),
                      definitions = request_data.get( 'definitions', True ),
@@ -188,8 +190,7 @@ def _GetJediNames( request_data ):
 
 def _SetJediSettings( settings ):
   for name, value in iteritems( settings ):
-    setattr( jedi.settings, name, value )
-
+    setattr( Sema_settings, name, value )
 
 @contextlib.contextmanager
 def _CustomSettings( request_data ):
