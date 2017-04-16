@@ -1,4 +1,4 @@
-#include <sourcekitd/sourcekitd.h>
+#include "sourcekitd/sourcekitd.h"
 #include <dispatch/dispatch.h>
 #include <assert.h>
 #include <string>
@@ -335,3 +335,5 @@ std::string SwiftCompleter::GetDeclarationLocation(
 }
 
 }
+
+int main() {}

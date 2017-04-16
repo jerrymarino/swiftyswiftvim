@@ -1,17 +1,23 @@
-#include "../DLLDefines.h"
-#include "UnsavedFile.h"
-#include <boost/utility.hpp>
 #include <string>
 #include <string>
 #include <vector>
 
-namespace YouCompleteMe {
-class SwiftCompleter : boost::noncopyable {
-public:
-  YCM_DLL_EXPORT SwiftCompleter();
-  YCM_DLL_EXPORT ~SwiftCompleter();
+class UnsavedFile {
+    public:
+    std::string contents_;
+    std::string filename_;
+};
 
-  YCM_DLL_EXPORT std::string  CandidatesForLocationInFile(
+
+namespace YouCompleteMe {
+
+
+class SwiftCompleter {
+public:
+  SwiftCompleter();
+  ~SwiftCompleter();
+
+  std::string  CandidatesForLocationInFile(
     const std::string &filename,
     int line,
     int column,
