@@ -34,7 +34,7 @@ import sys
 from base64 import b64decode
 from argparse import ArgumentParser
 from waitress import serve
-from jedihttp import handlers
+import requesthandlers as handlers
 from jedihttp.hmac_plugin import HmacPlugin
 
 
