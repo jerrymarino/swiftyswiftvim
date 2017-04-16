@@ -20,14 +20,15 @@ struct Runner
         auto flags = std::vector<std::string>();
         flags.push_back(std::string("Some"));
         auto files = std::vector<UnsavedFile>();
-//        auto result = completer.CandidatesForLocationInFile(
- //               filename,
-         //       column,
-   //             line,
-     //           files,
-       //         flags)
+        files.push_back(unsavedFile);
+        auto result = completer.CandidatesForLocationInFile(
+                fileName,
+                column,
+                line,
+                files,
+                flags);
 
-        return "";
+        return result;
     
     }
 
