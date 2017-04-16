@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import swiftvi
+import build.swiftvi as swiftvi
 
 def run(col, line):
     flags = swiftvi.StringList()
