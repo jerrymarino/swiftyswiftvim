@@ -5,3 +5,14 @@ clang++ -std=c++11 \
 SwiftCompleter.cpp  \
 -o \
 SwiftCompleter
+
+PYTHON_VERSION=2.7
+PYTHON_INTERFACE=PythonExtensions
+BOOST_INC=/usr/local/include
+BOOST_LIB=/usr/local/lib
+
+# compile mesh classes
+clang++ -isystem /usr/local/Frameworks -F /usr/local/Frameworks -I/usr/local/Frameworks/Python.framework/Headers/ -I $BOOST_INC -fPIC -c $PYTHON_INTERFACE.cpp
+
+clang++ -shared -L$BOOST_LIB  -isystem /usr/local/Frameworks -F /usr/local/Frameworks -framework Python -I/usr/local/Frameworks/Python.framework/Headers/ -lboost_python -lpython$PYTHON_VERSION -install_name $PYTHON_INTERFACE.so -o swiftvi.so $PYTHON_INTERFACE.o
+

@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-import hello
+import swiftvi
 
-t = hello.World()
-t.set("bom dia!")
-print (t.greet())
+runner = swiftvi.Runner()
+runner.set("bom dia!")
+print (runner.run())
 
 
