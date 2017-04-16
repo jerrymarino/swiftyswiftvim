@@ -335,5 +335,3 @@ std::string SwiftCompleter::GetDeclarationLocation(
 }
 
 }
-
-int main() {}
