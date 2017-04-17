@@ -7,3 +7,12 @@ Make sure to put the YouCompleteMe directory in ~/.vim/bundle
 This is achieved with a symlink usually?
 
 Put the source in YCMD - Symlink too?
+
+## Accessing the latest log:
+ vim  /var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/`ls -tr /var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/ | grep jedi | tail -1`
+
+
+It is possible to edit the python code and just restart the server, without
+building!
+
+
