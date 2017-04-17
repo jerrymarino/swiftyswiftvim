@@ -10,11 +10,6 @@ clang++ -std=c++11 \
 -c \
 $SRCROOT/SwiftCompleter.cpp  
 
-clang++ -shared  -F `xcode-select --print-path`/Toolchains/XcodeDefault.xctoolchain/usr/lib/ \
--framework sourcekitd \
--rpath `xcode-select --print-path`/Toolchains/XcodeDefault.xctoolchain/usr/lib \
--o Utils.so SwiftCompleter.o
-
 # Build python interface
 PYTHON_VERSION=2.7
 PYTHON_INTERFACE=PythonExtensions
@@ -31,6 +26,9 @@ clang++ \
 
 clang++ -shared \
 -L$BOOST_LIB \
+-framework sourcekitd \
+-F `xcode-select --print-path`/Toolchains/XcodeDefault.xctoolchain/usr/lib/ \
+-rpath `xcode-select --print-path`/Toolchains/XcodeDefault.xctoolchain/usr/lib \
 -isystem /usr/local/Frameworks \
 -F /usr/local/Frameworks \
 -framework Python \
@@ -39,7 +37,7 @@ clang++ -shared \
 -lpython$PYTHON_VERSION \
 -install_name $PYTHON_INTERFACE.so \
 -o swiftvi.so \
-$PYTHON_INTERFACE.o Utils.so
+$PYTHON_INTERFACE.o SwiftCompleter.o
 
 # Python code includes build
 touch __init__.py
