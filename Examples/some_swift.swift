@@ -16,6 +16,5 @@ class MySwift : NSObject {
     }
 
     func anotherFunction(){
-        
     }
 }

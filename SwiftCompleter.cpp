@@ -13,38 +13,20 @@
 
 #pragma mark - SourceKitD
 
-static sourcekitd_uid_t KeyRequest;
-static sourcekitd_uid_t KeyCompilerArgs;
-static sourcekitd_uid_t KeyOffset;
-static sourcekitd_uid_t KeyLength;
+static sourcekitd_uid_t KeyCompilerArgs = sourcekitd_uid_get_from_cstr( "key.compilerargs" );
+static sourcekitd_uid_t KeyOffset = sourcekitd_uid_get_from_cstr( "key.offset" );
+static sourcekitd_uid_t KeyLength = sourcekitd_uid_get_from_cstr( "key.length" );
 
-static sourcekitd_uid_t KeyCodeCompleteOptions;
-static sourcekitd_uid_t KeyUseImportDepth;
-static sourcekitd_uid_t KeyHideLowPriority;
-static sourcekitd_uid_t KeyFilterText;
+static sourcekitd_uid_t KeyCodeCompleteOptions = sourcekitd_uid_get_from_cstr( "key.codecomplete.options" );
+static sourcekitd_uid_t KeyUseImportDepth = sourcekitd_uid_get_from_cstr( "key.codecomplete.sort.useimportdepth" );
+static sourcekitd_uid_t KeyHideLowPriority = sourcekitd_uid_get_from_cstr( "key.codecomplete.hidelowpriority" );
+static sourcekitd_uid_t KeyFilterText = sourcekitd_uid_get_from_cstr( "key.codecomplete.filtertext" );
 
-static sourcekitd_uid_t KeySourceFile;
-static sourcekitd_uid_t KeySourceText;
-static sourcekitd_uid_t KeyName;
+static sourcekitd_uid_t KeySourceFile = sourcekitd_uid_get_from_cstr( "key.sourcefile" );
+static sourcekitd_uid_t KeySourceText = sourcekitd_uid_get_from_cstr( "key.sourcetext" );
+static sourcekitd_uid_t KeyName = sourcekitd_uid_get_from_cstr( "key.name" );
 
-static void InitKeys() {
-  KeyRequest = sourcekitd_uid_get_from_cstr( "key.request" );
-  KeyCompilerArgs = sourcekitd_uid_get_from_cstr( "key.compilerargs" );
-  KeyOffset = sourcekitd_uid_get_from_cstr( "key.offset" );
-  KeyLength = sourcekitd_uid_get_from_cstr( "key.length" );
-
-  KeyCodeCompleteOptions =
-    sourcekitd_uid_get_from_cstr( "key.codecomplete.options" );
-  KeyUseImportDepth =
-    sourcekitd_uid_get_from_cstr( "key.codecomplete.sort.useimportdepth" );
-  KeyFilterText = sourcekitd_uid_get_from_cstr( "key.codecomplete.filtertext" );
-  KeyHideLowPriority =
-    sourcekitd_uid_get_from_cstr( "key.codecomplete.hidelowpriority" );
-
-  KeySourceFile = sourcekitd_uid_get_from_cstr( "key.sourcefile" );
-  KeySourceText = sourcekitd_uid_get_from_cstr( "key.sourcetext" );
-  KeyName = sourcekitd_uid_get_from_cstr( "key.name" );
-}
+static sourcekitd_uid_t KeyRequest = sourcekitd_uid_get_from_cstr( "key.request" );
 
 static void NotificationReceiver( sourcekitd_response_t resp ) {
   if ( sourcekitd_response_is_error( resp ) ) {
@@ -54,7 +36,6 @@ static void NotificationReceiver( sourcekitd_response_t resp ) {
 
 static void InitSourceKitD() {
   sourcekitd_initialize();
-  InitKeys();
   sourcekitd_set_notification_handler( ^( sourcekitd_response_t resp ) {
     NotificationReceiver( resp );
   } );
@@ -289,16 +270,6 @@ SwiftCompleter::~SwiftCompleter() {
   ShutdowSourceKitD();
 }
 
-bool OpenForFile = false;
-
-// FIXME: add support for eagerly opening a file and pre
-// populating the cache. It seems to take a long time to
-// return the first result and results after that are
-// faster
-static bool openForFile( std::string file ) {
-  return OpenForFile;
-}
-
 std::string SwiftCompleter::CandidatesForLocationInFile(
   const std::string &filename,
   int line,
@@ -312,15 +283,8 @@ std::string SwiftCompleter::CandidatesForLocationInFile(
   ctx.unsavedFiles = unsaved_files;
   ctx.flags = flags;
   char *response = NULL;
-
-  if ( openForFile( "" ) ) {
-    CompletionOpen( ctx, &response );
-    CompletionUpdate( ctx, &response );
-  } else {
-    CompletionOpen( ctx, &response );
-    OpenForFile = true;
-  }
-
+  CompletionOpen( ctx, &response );
+  CompletionUpdate( ctx, &response );
   return response;
 }
 
