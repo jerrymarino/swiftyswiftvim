@@ -6,7 +6,7 @@
 
 
 using namespace boost::python;
-using namespace YouCompleteMe;
+using namespace ssvim;
 typedef std::vector<std::string> StringList;
 
 struct Runner
@@ -17,8 +17,8 @@ struct Runner
             unsigned line,
             unsigned column) { 
         this->fileName = fileName;
-        unsavedFile.contents_ = fileContents;
-        unsavedFile.filename_ = fileName;
+        unsavedFile.contents = fileContents;
+        unsavedFile.fileName = fileName;
         this->column = column;
         this->line = line;
         this->flags = flags;

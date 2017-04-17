@@ -2,15 +2,13 @@
 #include <string>
 #include <vector>
 
+namespace ssvim {
+
 class UnsavedFile {
     public:
-    std::string contents_;
-    std::string filename_;
+    std::string contents;
+    std::string fileName;
 };
-
-
-namespace YouCompleteMe {
-
 
 class SwiftCompleter {
 public:
@@ -21,14 +19,14 @@ public:
     const std::string &filename,
     int line,
     int column,
-    const std::vector< UnsavedFile > &unsaved_files,
+    const std::vector< UnsavedFile > &unsavedFiles,
     const std::vector< std::string > &flags );
 
   std::string GetDeclarationLocation(
     const std::string &filename,
     int line,
     int column,
-    const std::vector< UnsavedFile > &unsaved_files,
+    const std::vector< UnsavedFile > &unsavedFiles,
     const std::vector< std::string > &flags,
     bool reparse = true );
 };

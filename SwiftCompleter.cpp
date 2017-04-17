@@ -120,7 +120,10 @@ static bool CodeCompleteRequest(
   return result;
 }
 
+using namespace ssvim;
+
 // Context for a given completion
+
 struct CompletionContext {
   // The current source source file's absolute path
   std::string sourceFilename;
@@ -160,8 +163,8 @@ static void GetOffset(
   std::string unsavedInput;
 
   for ( auto unsavedFile : ctx.unsavedFiles ) {
-    if ( unsavedFile.filename_ == fileName ) {
-      unsavedInput = unsavedFile.contents_;
+    if ( unsavedFile.fileName == fileName ) {
+      unsavedInput = unsavedFile.contents;
       break;
     }
   }
@@ -259,7 +262,7 @@ static int CompletionOpen( CompletionContext &ctx, char **oresponse ) {
 
 #pragma mark - SwiftCompleter
 
-namespace YouCompleteMe {
+namespace ssvim {
 static sourcekitd_uid_t KeyRequest;
 
 SwiftCompleter::SwiftCompleter() {
@@ -274,13 +277,13 @@ std::string SwiftCompleter::CandidatesForLocationInFile(
   const std::string &filename,
   int line,
   int column,
-  const std::vector< UnsavedFile > &unsaved_files,
+  const std::vector< UnsavedFile > &unsavedFiles,
   const std::vector< std::string > &flags ) {
   CompletionContext ctx;
   ctx.sourceFilename = filename;
   ctx.line = line;
   ctx.column = column;
-  ctx.unsavedFiles = unsaved_files;
+  ctx.unsavedFiles = unsavedFiles;
   ctx.flags = flags;
   char *response = NULL;
   CompletionOpen( ctx, &response );
@@ -292,9 +295,10 @@ std::string SwiftCompleter::GetDeclarationLocation(
   const std::string &filename,
   int line,
   int column,
-  const std::vector< UnsavedFile > &unsaved_files,
+  const std::vector< UnsavedFile > &unsavedFiles,
   const std::vector< std::string > &flags,
   bool reparse ) {
+  //TODO: Implement this
   return "SomeLocation";
 }
 
