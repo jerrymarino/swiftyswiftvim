@@ -1,0 +1,9 @@
+
+
+## Notes on Development
+
+Make sure to put the YouCompleteMe directory in ~/.vim/bundle
+
+This is achieved with a symlink usually?
+
+Put the source in YCMD - Symlink too?

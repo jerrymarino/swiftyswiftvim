@@ -16,6 +16,6 @@ class MySwift : NSObject {
     }
 
     func anotherFunction(){
-      self.some
+        
     }
 }

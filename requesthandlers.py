@@ -14,6 +14,7 @@
 
 from jedihttp import utils
 utils.AddVendorFolderToSysPath()
+import codecs
 
 import contextlib
 import logging
@@ -29,23 +30,90 @@ try:
 except ImportError:
   from http import client as httplib
 
+
+
+import build.swiftvi as swiftvi
+
+# Wrap a completion
+class YCMCompletion():
+    """
+    {
+      "key.kind": "source.lang.swift.decl.function.method.instance",
+      "key.name": "`self`() -> Self",
+      "key.sourcetext": "`self`() -> Self {\n<#code#>\n}",
+      "key.description": "`self`() -> Self",
+      "key.typename": "",
+      "key.context": "source.codecompletion.context.superclass",
+      "key.num_bytes_to_erase": 0,
+      "key.substructure": {
+        "key.nameoffset": 0,
+        "key.namelength": 16
+      },
+      "key.associated_usrs": "c:objc(pl)NSObject(im)self",
+      "key.modulename": "ObjectiveC.NSObject"
+    }
+    """
+    def docstring(self):
+        if self.docbrief:
+            return self.description + "\n" + self.docbrief
+        return self.description + "\n" +  self.context
+
+    def __init__( self, jsonValue ):
+        self.module_path = ""
+        self.name = jsonValue.get("key.sourcetext")
+        self.description  = jsonValue.get("key.description")
+        self.type = "swift"
+        self.line = 0
+        self.column = 0
+        self.modulename = jsonValue.get("key.modulename")
+        self.context = jsonValue.get("key.context")
+        self.docbrief = jsonValue.get("key.doc.brief")
+
+class YCMCompletionDoc():
+    def completions(self):
+        completions = []
+        for jsonCompletion in self.JSONString.get("key.results"):
+            completions.append(YCMCompletion(jsonCompletion))
+        return completions
+
+    def usages():
+        return self.JSONString
+
+    def __init__( self, value ):
+        self.JSONString = json.loads(value)
+
+def run(source_path, current_content, line, col):
+    # TODO: Allow selection of flags
+    flags = swiftvi.StringList()
+    flags.append("-sdk")
+    flags.append("/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
+    flags.append("-target")
+    flags.append("x86_64-apple-macosx10.12")
+
+    runner = swiftvi.Runner()
+    fileName = source_path.encode('utf-8')
+    content = current_content.encode('utf-8')
+    result = runner.complete(fileName, content, flags, col, line)
+    return YCMCompletionDoc(result)
+
+
 def Sema_preload_module(modules):
-    print("UNIMP")
+    return run(15, 19)
 
 Sema_settings = {}
 
-def Sema_Script(  source,
+def Sema_Script(source,
                       line,
                       col,
                       source_path):
-    print("UNIMP")
+    return run(source_path, source, line, col)
 
 def Sema_names(source,
                      path,
                      all_scopes,
                      definitions,
                      references):
-    print("UNIMP")
+    return run(19, 15)
 
 
 # num bytes for the request body buffer; request.json only works if the request
@@ -53,6 +121,7 @@ def Sema_names(source,
 bottle.Request.MEMFILE_MAX = 1000 * 1024
 
 logger = logging.getLogger( __name__ )
+logger.debug
 app = Bottle( __name__ )
 
 # Jedi is not thread safe.
@@ -82,7 +151,7 @@ def completions():
   with jedi_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
-      script = _GetJediScript( request_json )
+      script = _GetSemaDoc( request_json )
       response = _FormatCompletions( script.completions() )
   return _JsonResponse( response )
 
@@ -93,7 +162,7 @@ def gotodefinition():
   with jedi_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
-      script = _GetJediScript( request_json )
+      script = _GetSemaDoc( request_json )
       response = _FormatDefinitions( script.goto_definitions() )
   return _JsonResponse( response )
 
@@ -105,7 +174,7 @@ def gotoassignments():
     request_json = request.json
     follow_imports = request_json.get( 'follow_imports', False )
     with _CustomSettings( request_json ):
-      script = _GetJediScript( request_json )
+      script = _GetSemaDoc( request_json )
       response = _FormatDefinitions( script.goto_assignments( follow_imports ) )
   return _JsonResponse( response )
 
@@ -116,7 +185,7 @@ def usages():
   with jedi_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
-      script = _GetJediScript( request_json )
+      script = _GetSemaDoc( request_json )
       response = _FormatDefinitions( script.usages() )
   return _JsonResponse( response )
 
@@ -127,7 +196,7 @@ def names():
   with jedi_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
-      definitions = _GetJediNames( request_json )
+      definitions = _GetSemaNames( request_json )
       response = _FormatDefinitions( definitions )
   return _JsonResponse( response )
 
@@ -173,14 +242,14 @@ def _FormatDefinitions( definitions ):
   }
 
 
-def _GetJediScript( request_data ):
+def _GetSemaDoc( request_data ):
   return Sema_Script( request_data[ 'source' ],
                       request_data[ 'line' ],
                       request_data[ 'col' ],
                       request_data[ 'source_path' ] )
 
 
-def _GetJediNames( request_data ):
+def _GetSemaNames( request_data ):
   return Sema_names( source = request_data[ 'source' ],
                      path = request_data[ 'path' ],
                      all_scopes = request_data.get( 'all_scopes', False ),
