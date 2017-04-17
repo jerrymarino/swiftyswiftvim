@@ -1,18 +1,20 @@
 
-
-## Notes on Development
+## Notes on Development with Vim and YCMD
 
 Make sure to put the YouCompleteMe directory in ~/.vim/bundle
 
-This is achieved with a symlink usually?
+I achieved with a symlink to my development directory.
 
-Put the source in YCMD - Symlink too?
+Additionally, my YCMD fork, is symlinked into YouCompleteMe
 
 ## Accessing the latest log:
- vim  /var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/`ls -tr /var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/ | grep jedi | tail -1`
 
+vim  /var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/`ls -tr
+/var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/ | grep jedi | tail -1`
+
+
+# Code and Run
 
 It is possible to edit the python code and just restart the server, without
 building!
-
 
