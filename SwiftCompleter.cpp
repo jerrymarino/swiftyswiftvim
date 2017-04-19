@@ -247,7 +247,6 @@ static int CompletionUpdate( CompletionContext &ctx, char **oresponse ) {
                     CleanFile.c_str(), ctx.compilerArgs(), nullptr,
   [&]( sourcekitd_object_t response ) -> bool {
     if ( sourcekitd_response_is_error( response ) ) {
-      sourcekitd_response_description_dump( response );
       return true;
     }
     *oresponse = PrintResponse( response );
@@ -270,7 +269,6 @@ static int CompletionOpen( CompletionContext &ctx, char **oresponse ) {
                    CleanFile.c_str(), ctx.compilerArgs(), nullptr,
   [&]( sourcekitd_object_t response ) -> bool {
     if ( sourcekitd_response_is_error( response ) ) {
-      sourcekitd_response_description_dump( response );
       return true;
     }
     *oresponse = PrintResponse( response );

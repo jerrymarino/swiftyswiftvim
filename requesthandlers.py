@@ -1,17 +1,3 @@
-#     Copyright 2015 Cedraro Andrea <a.cedraro@gmail.com>
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-#    limitations under the License.
-
-
 from jedihttp import utils
 utils.AddVendorFolderToSysPath()
 import codecs
@@ -24,15 +10,12 @@ from bottle import response, request, Bottle
 from jedihttp import hmaclib
 from jedihttp.compatibility import iteritems
 from threading import Lock
+import build.swiftvi as swiftvi
 
 try:
   import httplib
 except ImportError:
   from http import client as httplib
-
-
-
-import build.swiftvi as swiftvi
 
 # Wrap a completion
 class YCMCompletion():
@@ -82,7 +65,13 @@ class YCMCompletionDoc():
     def __init__( self, value ):
         self.JSONString = json.loads(value)
 
-def run(source_path, current_content, line, col):
+class YCMNamesDoc():
+    def goto_assignments(self):
+        return []
+
+
+# Execute lookups against the semantic completion engine
+def _ExecuteCompletionLookup(source_path, current_content, line, col):
     # TODO: Allow selection of flags
     flags = swiftvi.StringList()
     flags.append("-sdk")
@@ -93,27 +82,31 @@ def run(source_path, current_content, line, col):
     runner = swiftvi.Runner()
     fileName = source_path.encode('utf-8')
     content = current_content.encode('utf-8')
+    logger.debug("__RUN file: %s col %s line %s", str(fileName), str(col), str(line))
     result = runner.complete(fileName, content, flags, col, line)
+# TODO: Add some way to log this
+#    logger.error(content)
+#    logger.error(result)
+    logger.debug("__DONE")
     return YCMCompletionDoc(result)
 
+def _UnImplemented():
+    pass
 
-def Sema_preload_module(modules):
-    return run(15, 19)
+def _ExecutePreloadModule(modules):
+    _UnImplemented()
+    return _ExecuteCompletionLookup(0, 0)
 
 Sema_settings = {}
 
-def Sema_Script(source,
-                      line,
-                      col,
-                      source_path):
-    return run(source_path, source, line, col)
 
 def Sema_names(source,
                      path,
                      all_scopes,
                      definitions,
                      references):
-    return run(19, 15)
+    _UnImplemented()
+    return _ExecuteCompletionLookup(0, 0)
 
 
 # num bytes for the request body buffer; request.json only works if the request
@@ -121,14 +114,13 @@ def Sema_names(source,
 bottle.Request.MEMFILE_MAX = 1000 * 1024
 
 logger = logging.getLogger( __name__ )
-logger.debug
+logger.setLevel(1)
 app = Bottle( __name__ )
 
-# Jedi is not thread safe.
-jedi_lock = Lock()
+# TODO: Remove?
+execution_lock = Lock()
 
-# For efficiency, we store the default values of the global Jedi settings. ##
-# TODO?
+# For efficiency, we store the default values of the global settings
 default_settings = {
     'case_insensitive_completion'     : "",
 }
@@ -148,9 +140,11 @@ def ready():
 @app.post( '/completions' )
 def completions():
   logger.debug( 'received /completions request' )
-  with jedi_lock:
+  logger.debug( '__BEFORE LOCK received /completions request' )
+  with execution_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
+      logger.debug( '__GET SEMA DOC received /completions request' )
       script = _GetSemaDoc( request_json )
       response = _FormatCompletions( script.completions() )
   return _JsonResponse( response )
@@ -159,7 +153,7 @@ def completions():
 @app.post( '/gotodefinition' )
 def gotodefinition():
   logger.debug( 'received /gotodefinition request' )
-  with jedi_lock:
+  with execution_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
       script = _GetSemaDoc( request_json )
@@ -169,8 +163,9 @@ def gotodefinition():
 
 @app.post( '/gotoassignment' )
 def gotoassignments():
+  _UnImplemented()
   logger.debug( 'received /gotoassignment request' )
-  with jedi_lock:
+  with execution_lock:
     request_json = request.json
     follow_imports = request_json.get( 'follow_imports', False )
     with _CustomSettings( request_json ):
@@ -181,10 +176,14 @@ def gotoassignments():
 
 @app.post( '/usages' )
 def usages():
+  _UnImplemented()
   logger.debug( 'received /usages request' )
-  with jedi_lock:
+  with execution_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
+      # TODO: Originally, this used the CompletionDoc
+      # consider moving this over to NamesDoc
+      # This doesn't actually work!
       script = _GetSemaDoc( request_json )
       response = _FormatDefinitions( script.usages() )
   return _JsonResponse( response )
@@ -192,8 +191,9 @@ def usages():
 
 @app.post( '/names' )
 def names():
+  _UnImplemented()
   logger.debug( 'received /names request' )
-  with jedi_lock:
+  with execution_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
       definitions = _GetSemaNames( request_json )
@@ -203,11 +203,12 @@ def names():
 
 @app.post( '/preload_module' )
 def preload_module():
+  _UnImplemented()
   logger.debug( 'received /preload_module request' )
-  with jedi_lock:
+  with execution_lock:
     request_json = request.json
     with _CustomSettings( request_json ):
-      Sema_preload_module( *request_json[ 'modules' ] )
+      _ExecutePreloadModule( *request_json[ 'modules' ] )
   return _JsonResponse( True )
 
 
@@ -241,23 +242,22 @@ def _FormatDefinitions( definitions ):
       } for definition in definitions ]
   }
 
-
 def _GetSemaDoc( request_data ):
-  return Sema_Script( request_data[ 'source' ],
-                      request_data[ 'line' ],
-                      request_data[ 'col' ],
-                      request_data[ 'source_path' ] )
-
+  return _ExecuteCompletionLookup( request_data[ 'source_path' ],
+             request_data[ 'source' ],
+             request_data[ 'line' ],
+             request_data[ 'col' ] )
 
 def _GetSemaNames( request_data ):
-  return Sema_names( source = request_data[ 'source' ],
-                     path = request_data[ 'path' ],
-                     all_scopes = request_data.get( 'all_scopes', False ),
-                     definitions = request_data.get( 'definitions', True ),
-                     references = request_data.get( 'references', False ) )
+  _UnImplemented()
+  source = request_data[ 'source' ]
+  path = request_data[ 'path' ]
+  all_scopes = request_data.get( 'all_scopes', False )
+  definitions = request_data.get( 'definitions', True )
+  references = request_data.get( 'references', False )
+  return None
 
-
-def _SetJediSettings( settings ):
+def _SetGlobalSettings( settings ):
   for name, value in iteritems( settings ):
     setattr( Sema_settings, name, value )
 
@@ -268,10 +268,10 @@ def _CustomSettings( request_data ):
     yield
     return
   try:
-    _SetJediSettings( settings )
+    _SetGlobalSettings( settings )
     yield
   finally:
-    _SetJediSettings( default_settings )
+    _SetGlobalSettings( default_settings )
 
 
 @app.error( httplib.INTERNAL_SERVER_ERROR )
