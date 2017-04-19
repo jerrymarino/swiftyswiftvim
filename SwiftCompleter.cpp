@@ -1,13 +1,13 @@
 #include "sourcekitd/sourcekitd.h"
-#include <dispatch/dispatch.h>
 #include <assert.h>
-#include <string>
-#include <functional>
-#include <map>
-#include <vector>
-#include <iostream>
+#include <dispatch/dispatch.h>
 #include <fstream>
+#include <functional>
+#include <iostream>
+#include <map>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "SwiftCompleter.h"
 
@@ -28,114 +28,108 @@ static sourcekitd_uid_t KeySourceText;
 static sourcekitd_uid_t KeyName;
 
 static void InitKeys() {
-  KeyRequest = sourcekitd_uid_get_from_cstr( "key.request" );
-  KeyCompilerArgs = sourcekitd_uid_get_from_cstr( "key.compilerargs" );
-  KeyOffset = sourcekitd_uid_get_from_cstr( "key.offset" );
-  KeyLength = sourcekitd_uid_get_from_cstr( "key.length" );
+  KeyRequest = sourcekitd_uid_get_from_cstr("key.request");
+  KeyCompilerArgs = sourcekitd_uid_get_from_cstr("key.compilerargs");
+  KeyOffset = sourcekitd_uid_get_from_cstr("key.offset");
+  KeyLength = sourcekitd_uid_get_from_cstr("key.length");
 
   KeyCodeCompleteOptions =
-    sourcekitd_uid_get_from_cstr( "key.codecomplete.options" );
+      sourcekitd_uid_get_from_cstr("key.codecomplete.options");
   KeyUseImportDepth =
-    sourcekitd_uid_get_from_cstr( "key.codecomplete.sort.useimportdepth" );
-  KeyFilterText = sourcekitd_uid_get_from_cstr( "key.codecomplete.filtertext" );
+      sourcekitd_uid_get_from_cstr("key.codecomplete.sort.useimportdepth");
+  KeyFilterText = sourcekitd_uid_get_from_cstr("key.codecomplete.filtertext");
   KeyHideLowPriority =
-    sourcekitd_uid_get_from_cstr( "key.codecomplete.hidelowpriority" );
+      sourcekitd_uid_get_from_cstr("key.codecomplete.hidelowpriority");
 
-  KeySourceFile = sourcekitd_uid_get_from_cstr( "key.sourcefile" );
-  KeySourceText = sourcekitd_uid_get_from_cstr( "key.sourcetext" );
-  KeyName = sourcekitd_uid_get_from_cstr( "key.name" );
+  KeySourceFile = sourcekitd_uid_get_from_cstr("key.sourcefile");
+  KeySourceText = sourcekitd_uid_get_from_cstr("key.sourcetext");
+  KeyName = sourcekitd_uid_get_from_cstr("key.name");
 }
 
-static void NotificationReceiver( sourcekitd_response_t resp ) {
-  if ( sourcekitd_response_is_error( resp ) ) {
-    sourcekitd_response_description_dump( resp );
+static void NotificationReceiver(sourcekitd_response_t resp) {
+  if (sourcekitd_response_is_error(resp)) {
+    sourcekitd_response_description_dump(resp);
   }
 }
 
 static void InitSourceKitD() {
   sourcekitd_initialize();
   InitKeys();
-  sourcekitd_set_notification_handler( ^( sourcekitd_response_t resp ) {
-    NotificationReceiver( resp );
-  } );
+  sourcekitd_set_notification_handler(^(sourcekitd_response_t resp) {
+    NotificationReceiver(resp);
+  });
 }
 
-static void ShutdowSourceKitD() {
-  sourcekitd_shutdown();
-}
+static void ShutdowSourceKitD() { sourcekitd_shutdown(); }
 
-static char *PrintResponse( sourcekitd_response_t resp ) {
-  auto dict = sourcekitd_response_get_value( resp );
-  auto JSONString = sourcekitd_variant_json_description_copy( dict );
+static char *PrintResponse(sourcekitd_response_t resp) {
+  auto dict = sourcekitd_response_get_value(resp);
+  auto JSONString = sourcekitd_variant_json_description_copy(dict);
   return JSONString;
 }
 
 #pragma mark - SourceKitD Completion Requests
 
-static sourcekitd_object_t createBaseRequest( sourcekitd_uid_t requestUID,
-                                              const char *name,
-                                              unsigned offset ) {
+static sourcekitd_object_t createBaseRequest(sourcekitd_uid_t requestUID,
+                                             const char *name,
+                                             unsigned offset) {
   sourcekitd_object_t request =
-    sourcekitd_request_dictionary_create( nullptr, nullptr, 0 );
-  sourcekitd_request_dictionary_set_uid( request, KeyRequest, requestUID );
-  sourcekitd_request_dictionary_set_int64( request, KeyOffset, offset );
-  sourcekitd_request_dictionary_set_string( request, KeyName, name );
+      sourcekitd_request_dictionary_create(nullptr, nullptr, 0);
+  sourcekitd_request_dictionary_set_uid(request, KeyRequest, requestUID);
+  sourcekitd_request_dictionary_set_int64(request, KeyOffset, offset);
+  sourcekitd_request_dictionary_set_string(request, KeyName, name);
   return request;
 }
 
-using HandlerFunc = std::function<bool( sourcekitd_response_t )>;
+using HandlerFunc = std::function<bool(sourcekitd_response_t)>;
 
-static bool SendRequestSync( sourcekitd_object_t request, HandlerFunc func ) {
-  auto response = sourcekitd_send_request_sync( request );
-  bool result = func( response );
-  sourcekitd_response_dispose( response );
+static bool SendRequestSync(sourcekitd_object_t request, HandlerFunc func) {
+  auto response = sourcekitd_send_request_sync(request);
+  bool result = func(response);
+  sourcekitd_response_dispose(response);
   return result;
 }
 
 std::vector<std::string> DefaultOSXArgs() {
   return {
-    "-sdk",
-    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
-    "-target",
-    "x86_64-apple-macosx10.12",
+      "-sdk", "/Applications/Xcode.app/Contents/Developer/Platforms/"
+              "MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+      "-target", "x86_64-apple-macosx10.12",
   };
 }
 
-static bool CodeCompleteRequest(
-  sourcekitd_uid_t requestUID,
-  const char *name,
-  unsigned offset,
-  const char *sourceText,
-  std::vector < std::string > compilerArgs,
-  const char *filterText,
-  HandlerFunc func ) {
-  auto request = createBaseRequest( requestUID, name, offset );
-  sourcekitd_request_dictionary_set_string( request, KeySourceFile, name );
-  sourcekitd_request_dictionary_set_string( request, KeySourceText, sourceText );
+static bool CodeCompleteRequest(sourcekitd_uid_t requestUID, const char *name,
+                                unsigned offset, const char *sourceText,
+                                std::vector<std::string> compilerArgs,
+                                const char *filterText, HandlerFunc func) {
+  auto request = createBaseRequest(requestUID, name, offset);
+  sourcekitd_request_dictionary_set_string(request, KeySourceFile, name);
+  sourcekitd_request_dictionary_set_string(request, KeySourceText, sourceText);
 
-  auto opts = sourcekitd_request_dictionary_create( nullptr, nullptr, 0 );
+  auto opts = sourcekitd_request_dictionary_create(nullptr, nullptr, 0);
   {
-    if ( filterText ) {
-      sourcekitd_request_dictionary_set_string( opts, KeyFilterText, filterText );
+    if (filterText) {
+      sourcekitd_request_dictionary_set_string(opts, KeyFilterText, filterText);
     }
   }
-  sourcekitd_request_dictionary_set_value( request, KeyCodeCompleteOptions, opts );
-  sourcekitd_request_release( opts );
+  sourcekitd_request_dictionary_set_value(request, KeyCodeCompleteOptions,
+                                          opts);
+  sourcekitd_request_release(opts);
 
-  auto args = sourcekitd_request_array_create( nullptr, 0 );
+  auto args = sourcekitd_request_array_create(nullptr, 0);
   {
-    sourcekitd_request_array_set_string( args, SOURCEKITD_ARRAY_APPEND, name );
+    sourcekitd_request_array_set_string(args, SOURCEKITD_ARRAY_APPEND, name);
 
-    for ( auto arg : compilerArgs )
-      sourcekitd_request_array_set_string( args, SOURCEKITD_ARRAY_APPEND, arg.c_str() );
-
+    for (auto arg : compilerArgs)
+      sourcekitd_request_array_set_string(args, SOURCEKITD_ARRAY_APPEND,
+                                          arg.c_str());
   }
-  sourcekitd_request_dictionary_set_value( request, KeyCompilerArgs, args );
-  sourcekitd_request_release( args );
+  sourcekitd_request_dictionary_set_value(request, KeyCompilerArgs, args);
+  sourcekitd_request_release(args);
 
   // Send the request!
-  bool result = SendRequestSync( request, func );
-  sourcekitd_request_release( request );
+  bool result = SendRequestSync(request, func);
+  sourcekitd_request_release(request);
   return result;
 }
 
@@ -151,15 +145,15 @@ struct CompletionContext {
   unsigned line;
   unsigned column;
 
-  std::vector < std::string > flags;
+  std::vector<std::string> flags;
 
   // Unsaved files
-  std::vector < UnsavedFile > unsavedFiles;
+  std::vector<UnsavedFile> unsavedFiles;
 
   // Return the args based on the current flags
   // and default to the OSX SDK if none.
-  std::vector < std::string > compilerArgs() {
-    if ( flags.size() == 0 ) {
+  std::vector<std::string> compilerArgs() {
+    if (flags.size() == 0) {
       return DefaultOSXArgs();
     }
 
@@ -171,55 +165,53 @@ struct CompletionContext {
 // FIXME: The file ends after the first interesting
 // character, which prevents completing symbols
 // declared after the offset
-static void GetOffset(
-  CompletionContext &ctx,
-  unsigned *offset,
-  std::string *CleanFile ) {
+static void GetOffset(CompletionContext &ctx, unsigned *offset,
+                      std::string *CleanFile) {
   unsigned line = ctx.line;
   unsigned column = ctx.column;
   auto fileName = ctx.sourceFilename;
 
   std::string unsavedInput;
 
-  for ( auto unsavedFile : ctx.unsavedFiles ) {
-    if ( unsavedFile.fileName == fileName ) {
+  for (auto unsavedFile : ctx.unsavedFiles) {
+    if (unsavedFile.fileName == fileName) {
       unsavedInput = unsavedFile.contents;
       break;
     }
   }
 
-  assert( unsavedInput.length() && "Missing unsaved file" );
+  assert(unsavedInput.length() && "Missing unsaved file");
 
-  std::istringstream sourceFile( unsavedInput );
+  std::istringstream sourceFile(unsavedInput);
   std::string someLine;
   unsigned currentLine = 0;
   unsigned outOffset = 0;
 
-  while ( std::getline( sourceFile, someLine ) ) {
-    if ( currentLine + 1 == line ) {
+  while (std::getline(sourceFile, someLine)) {
+    if (currentLine + 1 == line) {
       // Enumerate from the column to an interesting point
-      for ( int i = column; i >= 0; i-- ) {
+      for (int i = column; i >= 0; i--) {
         char someChar = '\0';
 
-        if ( someLine.length() > i ) {
-          someChar = someLine.at( i );
+        if (someLine.length() > i) {
+          someChar = someLine.at(i);
         }
 
-        if ( someChar == ' ' || someChar == '.' || i == 0 ) {
+        if (someChar == ' ' || someChar == '.' || i == 0) {
           unsigned forwardIdx = i + 1;
-          //Include the character in the partial file
-          std::string  partialLine = "";
+          // Include the character in the partial file
+          std::string partialLine = "";
 
-          if ( i == 0 ) {
+          if (i == 0) {
             partialLine = someLine;
-          } else if ( someLine.length() > forwardIdx ) {
-            partialLine = someLine.substr( 0, forwardIdx );
-          } else if ( someLine.length() > i ) {
-            partialLine = someLine.substr( 0, i );
+          } else if (someLine.length() > forwardIdx) {
+            partialLine = someLine.substr(0, forwardIdx);
+          } else if (someLine.length() > i) {
+            partialLine = someLine.substr(0, i);
           }
 
           outOffset += partialLine.length();
-          CleanFile->append( partialLine );
+          CleanFile->append(partialLine);
           outOffset = CleanFile->length();
 
           *offset = outOffset;
@@ -228,52 +220,52 @@ static void GetOffset(
       }
     } else {
       currentLine++;
-      CleanFile->append( someLine );
-      CleanFile->append( "\n" );
+      CleanFile->append(someLine);
+      CleanFile->append("\n");
     }
   }
 }
 
 // Update the file and get latest results.
-static int CompletionUpdate( CompletionContext &ctx, char **oresponse ) {
+static int CompletionUpdate(CompletionContext &ctx, char **oresponse) {
   sourcekitd_uid_t RequestCodeCompleteUpdate =
-    sourcekitd_uid_get_from_cstr( "source.request.codecomplete.update" );
+      sourcekitd_uid_get_from_cstr("source.request.codecomplete.update");
   unsigned CodeCompletionOffset = 0;
   std::string CleanFile;
-  GetOffset( ctx, &CodeCompletionOffset, &CleanFile );
+  GetOffset(ctx, &CodeCompletionOffset, &CleanFile);
 
-  bool isError =  CodeCompleteRequest(
-                    RequestCodeCompleteUpdate, ctx.sourceFilename.data(), CodeCompletionOffset,
-                    CleanFile.c_str(), ctx.compilerArgs(), nullptr,
-  [&]( sourcekitd_object_t response ) -> bool {
-    if ( sourcekitd_response_is_error( response ) ) {
-      return true;
-    }
-    *oresponse = PrintResponse( response );
-    return false;
-  } );
+  bool isError = CodeCompleteRequest(
+      RequestCodeCompleteUpdate, ctx.sourceFilename.data(),
+      CodeCompletionOffset, CleanFile.c_str(), ctx.compilerArgs(), nullptr,
+      [&](sourcekitd_object_t response) -> bool {
+        if (sourcekitd_response_is_error(response)) {
+          return true;
+        }
+        *oresponse = PrintResponse(response);
+        return false;
+      });
 
   return isError;
 }
 
 // Open the connection and get the first set of results.
-static int CompletionOpen( CompletionContext &ctx, char **oresponse ) {
+static int CompletionOpen(CompletionContext &ctx, char **oresponse) {
   sourcekitd_uid_t RequestCodeCompleteOpen =
-    sourcekitd_uid_get_from_cstr( "source.request.codecomplete.open" );
+      sourcekitd_uid_get_from_cstr("source.request.codecomplete.open");
   unsigned CodeCompletionOffset = 0;
   std::string CleanFile;
-  GetOffset( ctx, &CodeCompletionOffset, &CleanFile );
+  GetOffset(ctx, &CodeCompletionOffset, &CleanFile);
 
   bool isError = CodeCompleteRequest(
-                   RequestCodeCompleteOpen, ctx.sourceFilename.data(), CodeCompletionOffset,
-                   CleanFile.c_str(), ctx.compilerArgs(), nullptr,
-  [&]( sourcekitd_object_t response ) -> bool {
-    if ( sourcekitd_response_is_error( response ) ) {
-      return true;
-    }
-    *oresponse = PrintResponse( response );
-    return false;
-  } );
+      RequestCodeCompleteOpen, ctx.sourceFilename.data(), CodeCompletionOffset,
+      CleanFile.c_str(), ctx.compilerArgs(), nullptr,
+      [&](sourcekitd_object_t response) -> bool {
+        if (sourcekitd_response_is_error(response)) {
+          return true;
+        }
+        *oresponse = PrintResponse(response);
+        return false;
+      });
   return isError;
 }
 
@@ -282,20 +274,14 @@ static int CompletionOpen( CompletionContext &ctx, char **oresponse ) {
 namespace ssvim {
 static sourcekitd_uid_t KeyRequest;
 
-SwiftCompleter::SwiftCompleter() {
-  InitSourceKitD();
-}
+SwiftCompleter::SwiftCompleter() { InitSourceKitD(); }
 
-SwiftCompleter::~SwiftCompleter() {
-  ShutdowSourceKitD();
-}
+SwiftCompleter::~SwiftCompleter() { ShutdowSourceKitD(); }
 
 std::string SwiftCompleter::CandidatesForLocationInFile(
-  const std::string &filename,
-  int line,
-  int column,
-  const std::vector< UnsavedFile > &unsavedFiles,
-  const std::vector< std::string > &flags ) {
+    const std::string &filename, int line, int column,
+    const std::vector<UnsavedFile> &unsavedFiles,
+    const std::vector<std::string> &flags) {
   CompletionContext ctx;
   ctx.sourceFilename = filename;
   ctx.line = line;
@@ -303,20 +289,16 @@ std::string SwiftCompleter::CandidatesForLocationInFile(
   ctx.unsavedFiles = unsavedFiles;
   ctx.flags = flags;
   char *response = NULL;
-  CompletionOpen( ctx, &response );
-  CompletionUpdate( ctx, &response );
+  CompletionOpen(ctx, &response);
+  CompletionUpdate(ctx, &response);
   return response;
 }
 
 std::string SwiftCompleter::GetDeclarationLocation(
-  const std::string &filename,
-  int line,
-  int column,
-  const std::vector< UnsavedFile > &unsavedFiles,
-  const std::vector< std::string > &flags,
-  bool reparse ) {
-  //TODO: Implement this
+    const std::string &filename, int line, int column,
+    const std::vector<UnsavedFile> &unsavedFiles,
+    const std::vector<std::string> &flags, bool reparse) {
+  // TODO: Implement this
   return "SomeLocation";
 }
-
 }
