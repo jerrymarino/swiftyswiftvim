@@ -33,9 +33,8 @@ public:
                               const std::vector<std::string> &flags);
 
   std::string
-  GetDeclarationLocation(const std::string &filename, int line, int column,
-                         const std::vector<UnsavedFile> &unsavedFiles,
-                         const std::vector<std::string> &flags,
-                         bool reparse = true);
+  DiagnosticsForFile(const std::string &filename,
+                     const std::vector<UnsavedFile> &unsavedFiles,
+                     const std::vector<std::string> &flags);
 };
 }

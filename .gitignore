@@ -1,4 +1,6 @@
 *.so
 *.o
 *.pyc
+build
 vendor/
+

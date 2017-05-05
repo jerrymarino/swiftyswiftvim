@@ -1,3 +1,7 @@
+# This is being deprecated for the new ASIO HTTP frontend
+# For now, it lives on to get ideas of how it can work end to end
+# with the backend.
+
 from jedihttp import utils
 utils.AddVendorFolderToSysPath()
 import codecs

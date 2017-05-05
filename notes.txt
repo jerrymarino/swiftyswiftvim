@@ -18,3 +18,80 @@ vim  /var/folders/9q/40k26bk91j14s13tgl05dfkh0000gn/T/`ls -tr
 It is possible to edit the python code and just restart the server, without
 building!
 
+
+# Diagnostics
+
+These only work when editor open follows an editor replacetext command
+
+# Errors
+
+We can't get a correct import for foundation
+
+
+## Build System
+
+SSVI uses CMake to build
+
+# Using CMake
+
+The main target, `http_server` can be built with CMake
+
+```
+mkdir -p build
+cd build
+cmake -G "Unix Makefiles" ..
+```
+And then make
+
+```
+make
+``
+
+Optionally, you can use Xcode or your favorite IDE with CMake generators, but
+that would be ironic since this is a vim plugin.
+
+## HTTP Server
+
+SSVI http backed is build ontop of Boost.ASIO and Beast HTTP.
+
+Start up the server after building
+
+```
+build/http_server
+```
+
+The HTTP server uses a JSON post body
+Its easy to test with Curl.
+
+```
+curl -H "Content-Type: application/json" -X POST -d '{"test-key":"test-value"}' http://0.0.0.0:8080/
+```
+
+Completions
+```
+curl -H "Content-Type: application/json" -X POST -d '{\
+"flags":["-foo"],\
+"unsaved_files":["some foo"],\
+"line":19,\
+"column":15,\
+"file_name":"/path/to/foo",\
+}' http://0.0.0.0:8080/completions
+
+```
+
+```
+curl -H "Content-Type: application/json" -X P
+OST -d '{"line":19,"column":15,"file_name":"a", "unsaved_files": ["f4"]
+, "flags": ["ja"]}' http://0.0.0.0:8080/completions
+``
+
+
+## Setting up Vim.
+
+CMake already has the ability to generate compile commands
+
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 "Unix Makefiles" ..
+
+The compile commands are in build/compile_commands.json
+
+

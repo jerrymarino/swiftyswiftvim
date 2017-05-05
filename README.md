@@ -10,11 +10,6 @@ It includes the following components
 - A completion engine for Swift that interfaces with the swift compiler.
 - A HTTP server to interface with completion engines ( YouCompleteMe ).
 
-[warning] This is quite hacked together! The prototype should support end to end
-semantic completion as a proof of concept for a given Swift program.
-
-## Detailed Design
-
 ### Completion Engine
 
 The backing implementation of the completion engine is a C++ completer and the
@@ -31,9 +26,7 @@ level.
 It eventually supports capabilities including: semantic completion, GoTo
 definition, diagnostics, symbol useage, and documentation displaying. It should
 support compile command configuration via flags and a JSON compilation database
-to support complex projects, similar to clang's JSON compilation database. This
-capability should be implemented at the Swift compiler level and is out of scope
-of this prototype.
+to support complex projects, similar to clang's JSON compilation database.
 
 ### HTTP Server
 
@@ -42,6 +35,5 @@ designed to work with YouCompleteMe YCMD. It uses HTTP as a protocol to
 integrate with YouCompleteMe:
 [https://val.markovic.io/articles/youcompleteme-as-a-server](YouCompleteMe)
 
-The actual implementation is basic request handling: the YCMD integration uses
-already built functionality in JediHttp.
+The frontend is build on Beast HTTP and Boost ASIO
 

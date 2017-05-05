@@ -1,3 +1,0 @@
-[submodule "vendor/jediHttp"]
-	path = vendor/jediHttp
-	url = https://github.com/vheon/JediHTTP
