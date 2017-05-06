@@ -95,3 +95,19 @@ cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 "Unix Makefiles" ..
 The compile commands are in build/compile_commands.json
 
 
+## Making sure file type is working
+
+YCM uses the vim file type in the current buffer to identify what completion engine to use and more.
+
+Assert this is set to the correct value      
+:set ft?
+
+manually set
+:set ft=swift
+
+Set automatically in your vimrc
+autocmd BufNewFile,BufRead *.swift set filetype=swift
+
+
+
+

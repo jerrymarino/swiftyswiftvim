@@ -22,6 +22,7 @@ echo '{"line":0,"column":0,"file_name":"'$PWD'/Examples/some_swift.swift", "cont
 
 # Manually test /completions or /diagnostics
 # TODO: write some integration tests
+# See original python commits with test.py run(19, 15)
 curl -i \
 -H "Content-Type: application/json" \
 -X POST \

@@ -3,10 +3,6 @@
  *
  * Note: Assume that we are calling dispatch_main() after running the server
  */
-
-#include "file_body.hpp"
-#include "mime_type.hpp"
-
 #include <beast/http.hpp>
 #include <beast/core/handler_helpers.hpp>
 #include <beast/core/handler_ptr.hpp>
@@ -22,10 +18,12 @@
 #include <thread>
 #include <utility>
 #include <sstream>
-#include <map>
 
-namespace beast {
+namespace ssvim {
 namespace http {
+    
+using namespace beast;
+using namespace beast::http;
 
 /**
  * SSVI HTTP Server is a HTTP front end for Swift Semantic
@@ -201,5 +199,5 @@ private:
 };
     
 } // http
-} // beast
+} // ssvim
 

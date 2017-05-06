@@ -1,10 +1,10 @@
-#include "ssvi_http_server.hpp"
+#include "ssvim_http_server.hpp"
 
 #include <boost/program_options.hpp>
 #include <dispatch/dispatch.h>
 #include <iostream>
 
-void loop() {
+void main_loop() {
     __block boost::asio::io_service* ios = new boost::asio::io_service();
     boost::asio::signal_set signals(
                                     *ios, SIGINT, SIGTERM);
@@ -25,7 +25,7 @@ void loop() {
 
 int main(int ac, char const* av[])
 {
-    using namespace beast::http;
+    using namespace ssvim::http;
     namespace po = boost::program_options;
     po::options_description desc("Options");
 
@@ -38,7 +38,11 @@ int main(int ac, char const* av[])
                         "Set the IP address to bind to, \"0.0.0.0\" for all")
         ("threads,n",   po::value<std::size_t>()->default_value(4),
                         "Set the number of threads to use")
-        ("sync,s",      "Launch a synchronous server")
+        // DEBUG, INFO, WARNING
+        ("log,r",      po::value<std::string>()->default_value("INFO"),
+                        "Set the logging level")
+        ("hmac-file-secret,r", po::value<std::string>()->default_value("none"),
+                        "Set the hmac secret")
         ;
     po::variables_map vm;
     po::store(po::parse_command_line(ac, av, desc), vm);
@@ -55,9 +59,11 @@ int main(int ac, char const* av[])
     using address_type = boost::asio::ip::address;
 
     endpoint_type ep{address_type::from_string(ip), port};
-
+    // TODO: HMAC and logging level in the endpoint_impl's
+    // For now, we just dump logs to std::out
+    // and HMAC isn't checked
     ssvi_http_server server(ep, threads, root);
-    loop();
+    main_loop();
     return 0;
 }
 

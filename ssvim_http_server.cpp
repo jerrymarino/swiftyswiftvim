@@ -5,9 +5,7 @@
  */
 
 #include "file_body.hpp"
-#include "mime_type.hpp"
-#include "ssvi_http_server.hpp"
-#include "sema_task.cpp"
+#include "ssvim_http_server.hpp"
 
 #include "SwiftCompleter.h"
 
@@ -45,7 +43,9 @@ struct service_context {
     log_level logging;
 };
 
-namespace beast { // FIXME: ssvi
+using namespace beast::http;
+
+namespace ssvim {
 namespace http {
 
 using socket_type = boost::asio::ip::tcp::socket;
@@ -89,10 +89,11 @@ class endpoint_impl : public std::enable_shared_from_this<endpoint_impl>{
     endpoint_fn _start;
 };
 
-using namespace ssvi;
+using namespace ssvim;
 
 endpoint_impl make_slow_test_endpoint();
 endpoint_impl make_status_endpoint();
+endpoint_impl make_shutdown_endpoint();
 endpoint_impl make_completions_endpoint();
 endpoint_impl make_diagnostics_endpoint();
 
@@ -141,6 +142,7 @@ public:
         };
 
         insert_endpoint("/status", make_status_endpoint());
+        insert_endpoint("/shutdown", make_shutdown_endpoint());
         insert_endpoint("/completions", make_completions_endpoint());
         insert_endpoint("/diagnostics", make_diagnostics_endpoint());
         insert_endpoint("/slow_test", make_slow_test_endpoint());
@@ -270,8 +272,26 @@ endpoint_impl make_status_endpoint() {
         res.status = 200;
         res.version = session->request().version;
         res.fields.insert("Server", "ssvi_http_server");
-        res.fields.insert("Content-Type", "text/html");
+        res.fields.insert("Content-Type", "application/json");
         prepare(res);
+        session->write(res);
+    });
+}
+
+endpoint_impl make_shutdown_endpoint() {
+    return endpoint_impl([&](std::shared_ptr<session> session){
+        std::cout << "Recieved Shutdown Request";
+        response<string_body> res;
+        res.status = 200;
+        res.version = session->request().version;
+        res.fields.insert("Server", "ssvi_http_server");
+        res.fields.insert("Content-Type", "application/json");
+        prepare(res);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
+                       std::cout << "Shutting down...";
+                       exit(0);
+        });
         session->write(res);
     });
 }
@@ -349,7 +369,7 @@ endpoint_impl make_completions_endpoint() {
         res.status = 200;
         res.version = session->request().version;
         res.fields.insert("Server", "ssvi_http_server");
-        res.fields.insert("Content-Type", "text/html");
+        res.fields.insert("Content-Type", "application/json");
         res.body = candidates;
         prepare(res);
         session->write(res);
@@ -403,7 +423,7 @@ endpoint_impl make_diagnostics_endpoint() {
         res.status = 200;
         res.version = session->request().version;
         res.fields.insert("Server", "ssvi_http_server");
-        res.fields.insert("Content-Type", "text/html");
+        res.fields.insert("Content-Type", "application/json");
         res.body = diagnostics;
         prepare(res);
         session->write(res);
@@ -414,7 +434,8 @@ endpoint_impl make_slow_test_endpoint()
 {
     return endpoint_impl([](std::shared_ptr<session> session){
         // Wait for 10 seconds to write hello world.
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC),
+                       dispatch_get_main_queue(), ^{
             std::cout << "Enter main: " << session->instance_id() << "\n";
             std::cout << session->request().url;
             std::cout.flush();
@@ -423,7 +444,7 @@ endpoint_impl make_slow_test_endpoint()
             res.status = 200;
             res.version = session->request().version;
             res.fields.insert("Server", "ssvi_http_server");
-            res.fields.insert("Content-Type", "text/html");
+            res.fields.insert("Content-Type", "application/json");
             res.body = "Hello World";
             prepare(res);
             session->write(res);
@@ -438,7 +459,7 @@ error_response(req_type request, std::string message){
     res.reason = "Internal Error";
     res.version = request.version;
     res.fields.insert("Server", "http_async_server");
-    res.fields.insert("Content-Type", "text/html");
+    res.fields.insert("Content-Type", "application/json");
     res.body =
     std::string{"An internal error occurred"} + message;
     prepare(res);
@@ -452,12 +473,12 @@ not_found_response(req_type request){
     res.reason = "Not Found";
     res.version = request.version;
     res.fields.insert("Server", "http_async_server");
-    res.fields.insert("Content-Type", "text/html");
+    res.fields.insert("Content-Type", "application/json");
     res.body = "Endpoint: '" + request.url + "' not found";
     prepare(res);
     return res;
 }
 
 } // http
-} // beast
+} // ssvim
 
