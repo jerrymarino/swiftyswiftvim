@@ -20,7 +20,7 @@ Typically, this means going into wherever you cloned YouCompleteMe and then:
   ./build.py
 ```
 
-By default VIM does support the swift filetype.
+By default VIM does not support the `swift` filetype.
 
 Cat this into your `.vimrc`
 ```
