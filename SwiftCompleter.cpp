@@ -287,8 +287,6 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
   std::istringstream sourceFile(unsavedInput);
   std::string someLine;
   unsigned currentLine = 0;
-  unsigned outOffset = 0;
-
   while (std::getline(sourceFile, someLine)) {
     if (currentLine + 1 == line) {
       // Enumerate from the column to an interesting point
@@ -310,11 +308,8 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
           } else if (someLine.length() > i) {
             partialLine = someLine.substr(0, i);
           }
-          outOffset += partialLine.length();
           CleanFile->append(partialLine);
-          outOffset = CleanFile->length();
-
-          *offset = outOffset;
+          *offset = CleanFile->length();
           return;
         }
       }
