@@ -1,10 +1,10 @@
-#include "ssvim_http_server.hpp"
+#include "SemanticHTTPServer.hpp"
 
 #include <boost/program_options.hpp>
 #include <dispatch/dispatch.h>
 #include <iostream>
 
-void main_loop() {
+void mainLoop() {
   __block boost::asio::io_service *ios = new boost::asio::io_service();
   boost::asio::signal_set signals(*ios, SIGINT, SIGTERM);
   signals.async_wait([&](boost::system::error_code const &, int) {});
@@ -55,7 +55,7 @@ int main(int ac, char const *av[]) {
   // TODO: HMAC and logging level in the endpoint_impl's
   // For now, we just dump logs to std::out
   // and HMAC isn't checked
-  ssvi_http_server server(ep, threads, root);
-  main_loop();
+  SemanticHTTPServer server(ep, threads, root);
+  mainLoop();
   return 0;
 }

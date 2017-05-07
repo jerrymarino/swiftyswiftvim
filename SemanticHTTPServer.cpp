@@ -4,10 +4,10 @@
  * Note: Assume that we are calling dispatch_main() after running the server
  */
 
-#include "ssvim_http_server.hpp"
+#include "SemanticHTTPServer.hpp"
 #include "file_body.hpp"
 
-#include "SwiftCompleter.h"
+#include "SwiftCompleter.hpp"
 
 #include <beast/core/handler_helpers.hpp>
 #include <beast/core/handler_ptr.hpp>
@@ -33,12 +33,17 @@
 #include <thread>
 #include <utility>
 
-typedef enum log_level { none, debug } log_level;
+typedef enum LogLevel { none, debug } LogLevel;
 
 struct service_context {
   std::string secret;
-  log_level logging;
+  LogLevel logging;
 };
+
+static auto HeaderValueContentTypeJSON = "application/json";
+static auto HeaderKeyContentType = "Content-Type";
+static auto HeaderKeyServer = "Server";
+static auto HeaderValueServer = "SSVIM";
 
 using namespace beast::http;
 
@@ -51,20 +56,20 @@ using req_type = request<string_body>;
 using resp_type = response<file_body>;
 
 /**
- * Session is an instance of an HTTP session.
+ * Session is an instance of an HTTP Session.
  *
  * The server will allocate a new instance for each accepted
  * request.
  */
-class session;
+class Session;
 
-using endpoint_fn = std::function<void(std::shared_ptr<session>)>;
+using EndpointFn = std::function<void(std::shared_ptr<Session>)>;
 
-class endpoint_impl : public std::enable_shared_from_this<endpoint_impl> {
+class EndpointImpl : public std::enable_shared_from_this<EndpointImpl> {
 public:
-  endpoint_impl(endpoint_fn start) : _start(start) {}
+  EndpointImpl(EndpointFn start) : _start(start) {}
 
-  void handle_request(std::shared_ptr<session> session) {
+  void handleRequest(std::shared_ptr<Session> session) {
     std::cout << "___HANDLE_REQUEST";
     std::cout.flush();
     // Assume we have a dispatch main queue running.
@@ -82,76 +87,71 @@ public:
   }
 
 private:
-  endpoint_fn _start;
+  EndpointFn _start;
 };
 
 using namespace ssvim;
 
-endpoint_impl make_slow_test_endpoint();
-endpoint_impl make_status_endpoint();
-endpoint_impl make_shutdown_endpoint();
-endpoint_impl make_completions_endpoint();
-endpoint_impl make_diagnostics_endpoint();
+EndpointImpl makeSlowTestEndpoint();
+EndpointImpl makeStatusEndpoint();
+EndpointImpl makeShutdownEndpoint();
+EndpointImpl makeCompletionsEndpoint();
+EndpointImpl makeDiagnosticsEndpoint();
 
-response<string_body> not_found_response(req_type request);
-response<string_body> error_response(req_type request, std::string message);
+response<string_body> notFoundResponse(req_type request);
+response<string_body> errorResponse(req_type request, std::string message);
 
-class session : public std::enable_shared_from_this<session> {
-  int _instance_id;
+class Session : public std::enable_shared_from_this<Session> {
   streambuf _streambuf;
   socket_type _socket;
   service_context _context;
   boost::asio::io_service::strand _strand;
   req_type _request;
-  std::map<std::string, endpoint_impl> _endpoints;
-  endpoint_impl *_endpoint;
+  std::map<std::string, EndpointImpl> _endpoints;
+  EndpointImpl *_endpoint;
 
 public:
-  session(session &&) = default;
-  session(session const &) = default;
-  session &operator=(session &&) = delete;
-  session &operator=(session const &) = delete;
+  Session(Session &&) = default;
+  Session(Session const &) = default;
+  Session &operator=(Session &&) = delete;
+  Session &operator=(Session const &) = delete;
 
-  session(socket_type &&sock, service_context ctx)
+  Session(socket_type &&sock, service_context ctx)
       : _socket(std::move(sock)), _context(ctx),
         _strand(_socket.get_io_service()) {
     _endpoint = NULL;
-    static int n = 0;
-    _instance_id = ++n;
     // TODO: Come up with a better way
     if (ctx.logging == debug) {
       std::cout << "Secret: ";
       std::cout << _context.secret;
-      std::cout << " Id: ";
-      std::cout << _instance_id;
       std::cout << "\n";
     }
 
     // Setup Endpoints.
     // TODO: Perhaps this can be done statically
-    _endpoints = std::map<std::string, endpoint_impl>();
-    auto insert_endpoint = [&](std::string named, endpoint_impl impl) {
-      _endpoints.insert(std::pair<std::string, endpoint_impl>(named, impl));
+    _endpoints = std::map<std::string, EndpointImpl>();
+    auto insert_endpoint = [&](std::string named, EndpointImpl impl) {
+      _endpoints.insert(std::pair<std::string, EndpointImpl>(named, impl));
     };
 
-    insert_endpoint("/status", make_status_endpoint());
-    insert_endpoint("/shutdown", make_shutdown_endpoint());
-    insert_endpoint("/completions", make_completions_endpoint());
-    insert_endpoint("/diagnostics", make_diagnostics_endpoint());
-    insert_endpoint("/slow_test", make_slow_test_endpoint());
+    insert_endpoint("/status", makeStatusEndpoint());
+    insert_endpoint("/shutdown", makeShutdownEndpoint());
+    insert_endpoint("/completions", makeCompletionsEndpoint());
+    insert_endpoint("/diagnostics", makeDiagnosticsEndpoint());
+    insert_endpoint("/slow_test", makeSlowTestEndpoint());
   }
 
-  void start() { do_read(); }
+  void start() { doRead(); }
 
-  std::shared_ptr<session> detach() { return shared_from_this(); }
+  std::shared_ptr<Session> detach() { return shared_from_this(); }
 
-  void do_read() {
+  void doRead() {
     async_read(_socket, _streambuf, _request,
-               _strand.wrap(std::bind(&session::on_read, shared_from_this(),
+               _strand.wrap(std::bind(&Session::onRead, shared_from_this(),
                                       asio::placeholders::error)));
   }
 
-  void on_read(error_code const &ec) {
+  void onRead(error_code const &ec) {
     std::cout << "__ONREAD";
     if (ec)
       return fail(ec, "read");
@@ -162,36 +162,33 @@ public:
     // - Quickly return to prevent from blocking acceptor loop.
     // - Perform a long running task.
     // - Schedule write for the response body
-    auto detached_session = detach();
+    auto detachedSession = detach();
 
     if (_context.logging == debug) {
-      std::cout << "__WILL_READ: " << _instance_id << path << "\n";
+      std::cout << "__WILL_READ: " << path << "\n";
       std::cout.flush();
     }
 
-    auto endpoint_entry = _endpoints.find(std::string(path));
-    if (endpoint_entry != _endpoints.end()) {
+    auto endpointImpl = _endpoints.find(std::string(path));
+    if (endpointImpl != _endpoints.end()) {
       std::cout << "__GOTEP:";
       std::cout.flush();
-      _endpoint = &endpoint_entry->second;
-      ;
-      _endpoint->handle_request(detached_session);
+      _endpoint = &endpointImpl->second;
+      _endpoint->handleRequest(detachedSession);
       return;
     }
 
     // Schedule not found response
-    detached_session->write(not_found_response(_request));
+    detachedSession->write(notFoundResponse(_request));
   }
 
-  void on_write(error_code ec) {
+  void onWrite(error_code ec) {
     if (ec)
       fail(ec, "write");
-    do_read();
+    doRead();
   }
 
 #pragma mark - State
-
-  int instance_id() { return _instance_id; }
 
   req_type request() { return _request; }
 
@@ -200,7 +197,7 @@ public:
   // Schedule a write
   void write(response<string_body> res) {
     async_write(_socket, std::move(res),
-                std::bind(&session::on_write, shared_from_this(),
+                std::bind(&Session::onWrite, shared_from_this(),
                           asio::placeholders::error));
   }
 
@@ -211,54 +208,54 @@ public:
 
   // Schedule an error message
   void error(std::string message) {
-    auto res = error_response(_request, message);
+    auto res = errorResponse(_request, message);
     async_write(_socket, std::move(res),
-                std::bind(&session::on_write, shared_from_this(),
+                std::bind(&Session::onWrite, shared_from_this(),
                           asio::placeholders::error));
   }
 };
 
 #pragma mark - Server
 
-void ssvi_http_server::on_accept(error_code ec) {
+void SemanticHTTPServer::onAccept(error_code ec) {
   if (!_acceptor.is_open())
     return;
   if (ec)
     return fail(ec, "accept");
   socket_type sock(std::move(_socket));
-  _acceptor.async_accept(_socket, std::bind(&ssvi_http_server::on_accept, this,
+  _acceptor.async_accept(_socket, std::bind(&SemanticHTTPServer::onAccept, this,
                                             asio::placeholders::error));
 
-  // Start a new session.
+  // Start a new Session.
   service_context ctx;
   ctx.secret = "Some Secret";
   ctx.logging = debug;
-  auto new_session = std::make_shared<session>(std::move(sock), ctx);
-  new_session->start();
+  auto session = std::make_shared<Session>(std::move(sock), ctx);
+  session->start();
 }
 
 #pragma mark - Endpoint impl
 
-endpoint_impl make_status_endpoint() {
-  return endpoint_impl([&](std::shared_ptr<session> session) {
+EndpointImpl makeStatusEndpoint() {
+  return EndpointImpl([&](std::shared_ptr<Session> session) {
     response<string_body> res;
     res.status = 200;
     res.version = session->request().version;
-    res.fields.insert("Server", "ssvi_http_server");
-    res.fields.insert("Content-Type", "application/json");
+    res.fields.insert(HeaderKeyServer, HeaderValueServer);
+    res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
     prepare(res);
     session->write(res);
   });
 }
 
-endpoint_impl make_shutdown_endpoint() {
-  return endpoint_impl([&](std::shared_ptr<session> session) {
+EndpointImpl makeShutdownEndpoint() {
+  return EndpointImpl([&](std::shared_ptr<Session> session) {
     std::cout << "Recieved Shutdown Request";
     response<string_body> res;
     res.status = 200;
     res.version = session->request().version;
-    res.fields.insert("Server", "ssvi_http_server");
-    res.fields.insert("Content-Type", "application/json");
+    res.fields.insert(HeaderKeyServer, HeaderValueServer);
+    res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
     prepare(res);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                    dispatch_get_main_queue(), ^{
@@ -273,7 +270,7 @@ using boost::property_tree::ptree;
 using boost::property_tree::read_json;
 using boost::property_tree::write_json;
 
-ptree parse_json_post_body(std::string body) {
+ptree readJSONPostBody(std::string body) {
   ptree pt;
   std::istringstream is(body);
   read_json(is, pt);
@@ -296,19 +293,19 @@ const std::vector<T> as_vector(ptree const &pt, ptree::key_type const &key) {
 // @param line: the users line
 // @param column: the users column
 // @param file_name: the name of the users file
-endpoint_impl make_completions_endpoint() {
-  return endpoint_impl([&](std::shared_ptr<session> session) {
+EndpointImpl makeCompletionsEndpoint() {
+  return EndpointImpl([&](std::shared_ptr<Session> session) {
     // Parse in data
-    auto body_string = session->request().body;
-    std::cout << body_string;
-    auto body_json = parse_json_post_body(body_string);
+    auto bodyString = session->request().body;
+    std::cout << bodyString;
+    auto bodyJSON = readJSONPostBody(bodyString);
 
-    auto file_name = body_json.get<std::string>("file_name");
-    auto column = body_json.get<int>("column");
-    auto line = body_json.get<int>("line");
-    auto contents = body_json.get<std::string>("contents");
-    auto flags = as_vector<std::string>(body_json, "flags");
-    std::cout << "file_name:" << file_name;
+    auto fileName = bodyJSON.get<std::string>("file_name");
+    auto column = bodyJSON.get<int>("column");
+    auto line = bodyJSON.get<int>("line");
+    auto contents = bodyJSON.get<std::string>("contents");
+    auto flags = as_vector<std::string>(bodyJSON, "flags");
+    std::cout << "file_name:" << fileName;
     std::cout << "column:" << column;
     std::cout << "line:" << line;
     for (auto &f : flags) {
@@ -321,13 +318,13 @@ endpoint_impl make_completions_endpoint() {
     auto files = std::vector<UnsavedFile>();
     auto unsaved = UnsavedFile();
     unsaved.contents = contents;
-    unsaved.fileName = file_name;
+    unsaved.fileName = fileName;
     files.push_back(unsaved);
 
     std::cout << "__SEND_REQ";
     std::cout.flush();
     auto candidates = completer.CandidatesForLocationInFile(
-        file_name, line, column, files, flags);
+        fileName, line, column, files, flags);
 
     std::cout << "__GOT_CANDIDATES";
     std::cout << candidates;
@@ -336,8 +333,8 @@ endpoint_impl make_completions_endpoint() {
     response<string_body> res;
     res.status = 200;
     res.version = session->request().version;
-    res.fields.insert("Server", "ssvi_http_server");
-    res.fields.insert("Content-Type", "application/json");
+    res.fields.insert(HeaderKeyServer, HeaderValueServer);
+    res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
     res.body = candidates;
     prepare(res);
     session->write(res);
@@ -349,20 +346,18 @@ endpoint_impl make_completions_endpoint() {
 //
 // @param flags: an array of string flags
 // @param contents: the current files
-// @param line: the users line
-// @param column: the users column
 // @param file_name: the name of the users file
-endpoint_impl make_diagnostics_endpoint() {
-  return endpoint_impl([&](std::shared_ptr<session> session) {
+EndpointImpl makeDiagnosticsEndpoint() {
+  return EndpointImpl([&](std::shared_ptr<Session> session) {
     // Parse in data
-    auto body_string = session->request().body;
-    std::cout << body_string;
-    auto body_json = parse_json_post_body(body_string);
+    auto bodyString = session->request().body;
+    std::cout << bodyString;
+    auto bodyJSON = readJSONPostBody(bodyString);
 
-    auto file_name = body_json.get<std::string>("file_name");
-    auto contents = body_json.get<std::string>("contents");
-    auto flags = as_vector<std::string>(body_json, "flags");
-    std::cout << "file_name:" << file_name;
+    auto fileName = bodyJSON.get<std::string>("file_name");
+    auto contents = bodyJSON.get<std::string>("contents");
+    auto flags = as_vector<std::string>(bodyJSON, "flags");
+    std::cout << "file_name:" << fileName;
     for (auto &f : flags) {
       std::cout << "flags:" << f;
     }
@@ -373,12 +368,12 @@ endpoint_impl make_diagnostics_endpoint() {
     auto files = std::vector<UnsavedFile>();
     auto unsaved = UnsavedFile();
     unsaved.contents = contents;
-    unsaved.fileName = file_name;
+    unsaved.fileName = fileName;
     files.push_back(unsaved);
 
     std::cout << "__SEND_REQ";
     std::cout.flush();
-    auto diagnostics = completer.DiagnosticsForFile(file_name, files, flags);
+    auto diagnostics = completer.DiagnosticsForFile(fileName, files, flags);
 
     std::cout << "__GOT_DIAGNOSTICS";
     std::cout << diagnostics;
@@ -387,29 +382,29 @@ endpoint_impl make_diagnostics_endpoint() {
     response<string_body> res;
     res.status = 200;
     res.version = session->request().version;
-    res.fields.insert("Server", "ssvi_http_server");
-    res.fields.insert("Content-Type", "application/json");
+    res.fields.insert(HeaderKeyServer, HeaderValueServer);
+    res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
     res.body = diagnostics;
     prepare(res);
     session->write(res);
   });
 }
 
-endpoint_impl make_slow_test_endpoint() {
-  return endpoint_impl([](std::shared_ptr<session> session) {
+EndpointImpl makeSlowTestEndpoint() {
+  return EndpointImpl([](std::shared_ptr<Session> session) {
     // Wait for 10 seconds to write hello world.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC),
                    dispatch_get_main_queue(), ^{
-                     std::cout << "Enter main: " << session->instance_id()
-                               << "\n";
+                     std::cout << "Enter main: ";
                      std::cout << session->request().url;
                      std::cout.flush();
 
                      response<string_body> res;
                      res.status = 200;
                      res.version = session->request().version;
-                     res.fields.insert("Server", "ssvi_http_server");
-                     res.fields.insert("Content-Type", "application/json");
+                     res.fields.insert(HeaderKeyServer, HeaderValueServer);
+                     res.fields.insert(HeaderKeyContentType,
+                                       HeaderValueContentTypeJSON);
                      res.body = "Hello World";
                      prepare(res);
                      session->write(res);
@@ -417,25 +412,25 @@ endpoint_impl make_slow_test_endpoint() {
   });
 }
 
-response<string_body> error_response(req_type request, std::string message) {
+response<string_body> errorResponse(req_type request, std::string message) {
   response<string_body> res;
   res.status = 500;
   res.reason = "Internal Error";
   res.version = request.version;
-  res.fields.insert("Server", "http_async_server");
-  res.fields.insert("Content-Type", "application/json");
+  res.fields.insert(HeaderKeyServer, HeaderValueServer);
+  res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
   res.body = std::string{"An internal error occurred"} + message;
   prepare(res);
   return res;
 }
 
-response<string_body> not_found_response(req_type request) {
+response<string_body> notFoundResponse(req_type request) {
   response<string_body> res;
   res.status = 404;
   res.reason = "Not Found";
   res.version = request.version;
-  res.fields.insert("Server", "http_async_server");
-  res.fields.insert("Content-Type", "application/json");
+  res.fields.insert(HeaderKeyServer, HeaderValueServer);
+  res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
   res.body = "Endpoint: '" + request.url + "' not found";
   prepare(res);
   return res;

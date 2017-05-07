@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-#include "SwiftCompleter.h"
+#include "SwiftCompleter.hpp"
 #include "sourcekitd/sourcekitd.h"
 
 #pragma mark - Futures

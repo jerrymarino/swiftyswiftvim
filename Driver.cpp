@@ -1,4 +1,4 @@
-#include "SwiftCompleter.h"
+#include "SwiftCompleter.hpp"
 #include <dispatch/dispatch.h>
 #include <iostream>
 #include <string>
@@ -50,7 +50,6 @@ int wrapped_main() {
                   "MacOSX.platform/Developer/SDKs/MacOSX.sdk");
   flags.push_back("-target");
   flags.push_back("x86_64-apple-macosx10.12");
-  assert(0 && "missing path to examples FIXME");
 
   auto exampleFilePath = "/tmp/x";
   auto result = runner.complete(exampleFilePath, contents, flags, 19, 13);

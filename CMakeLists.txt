@@ -57,11 +57,17 @@ set(CMAKE_CXX_FLAGS ${SKT_FLAGS})
 
 add_executable (http_server
     file_body.hpp
-    ssvim_http_server.hpp
-    ssvim_http_server.cpp
-    http_server.cpp
-    SwiftCompleter.h
+    SemanticHTTPServer.hpp
+    SemanticHTTPServer.cpp
+    SwiftCompleter.hpp
     SwiftCompleter.cpp
+    HTTPServerMain.cpp
+)
+
+add_executable (test_driver
+    SwiftCompleter.hpp
+    SwiftCompleter.cpp
+    Driver.cpp
 )
 
 target_link_libraries(http_server ${Boost_LIBRARIES} Threads::Threads)
