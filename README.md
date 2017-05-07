@@ -8,6 +8,8 @@ integrate Swift into [YouCompleteMe](https://github.com/Valloric/YouCompleteMe/)
 
 ## YouCompleteMe Usage
 
+![YCMPreview](SwiftySwiftVimYCMPreview.gif)
+
 Install the [RFC branch of YCMD with Swift Support](https://github.com/Valloric/ycmd/pull/487)
 into your YouCompleteMe installation.
 
