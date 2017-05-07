@@ -1,16 +1,17 @@
 # Swifty Swift Vim
 
-Swifty Swift Vim is a semantic editor backend swift tailored to the needs of
-text editors.
+Swifty Swift Vim is a semantic backend for the Swift programming language
+tailored to the needs of editing source code.
 
-It was originally designed to integrate Swift into [YouCompleteMe](https://github.com/Valloric/YouCompleteMe/).
+The project was founded to fulfil the need of semantic Swift support in text editors and
+integrate Swift into [YouCompleteMe](https://github.com/Valloric/YouCompleteMe/).
 
 ## YouCompleteMe Usage
 
-Install the [RFC branch of YCMD with Swift Supprt](https://github.com/Valloric/ycmd/pull/487)
+Install the [RFC branch of YCMD with Swift Support](https://github.com/Valloric/ycmd/pull/487)
 into your YouCompleteMe installation.
 
-Typically, this means going into wherever you cloned YouCompleteMe and then:
+For example, this means going into wherever you cloned YouCompleteMe and then:
 
 ```
   mv third_party/ycmd third_party/ycmd-master
@@ -20,14 +21,15 @@ Typically, this means going into wherever you cloned YouCompleteMe and then:
   git checkout remotes/origin/jmarino_swift_prototype_squashed
   git submodule update --init --recursive
 
-  # Build with swift support
-  # ( Also, keep clang and potentially debug symbols --debug-symbols )
+  # Build with Swift support
+  # ( Also, clang completer and potentially --debug-symbols )
   ./build.py  --completers --swift-completer --clang-completer
 ```
 
-By default VIM does not support the `swift` filetype.
+By default Vim does not support the `swift` filetype.
 
 Cat this into your `.vimrc`
+
 ```
     " Force swift filetype
     autocmd BufNewFile,BufRead *.swift set filetype=swift
@@ -44,65 +46,76 @@ Then, assert it's set to the correct value when a `swift` file is open.
 - Code Completion
 - Semantic Diagnostics
 
-## Design
+## Technical Design
 
-It is built on existing functionality provided by the open source Swift compiler
-project.
+It implements Semantic abilities based on the Swift programming language and
+exposes them via an HTTP server.
 
 It includes the following components
 
-- A completion engine for Swift that interfaces with the swift compiler.
-- A HTTP server to interface with completion engines ( YouCompleteMe ).
+- A semantic engine for Swift.
+- An HTTP server.
+- **Thin** [YouCompleteMe integration](https://github.com/Valloric/ycmd/pull/487)
 
-### Completion Engine
+### Semantic Engine
 
-The backing implementation of the completion engine is a C++ completer which is
-based on the Swift compiler and related APIs.
+The semantic engine is based on the Swift compiler and related APIs.
 
-When reasonable, capabilities are built against SourceKit, the highest level
-Swift tooling API. This leverages code reuse, and by using the highest level
-APIs as possible, will simplify keeping the completer both feature complete and
-up to date.
+When reasonable, capabilities leverage SourceKit, the highest level Swift
+tooling API. This leverages code reuse, and by using the highest level APIs as
+possible, will simplify keeping the completer both feature complete and up to
+date.
 
-It makes calls to SourceKit via the sourcekitd client/server implementation,
-for now. This is to consumes the SourceKit API at the highest level. This is
-similar usage of these featues in Xcode.
+It makes calls to SourceKit via the `sourcekitd` client. This is to consumes
+the SourceKit API at the highest level and is similar usage of these features in
+Xcode.
 
-It links against the prebuilt binary in Xcode to simplify source builds and
-distribution.
+It links against the prebuilt `sourcekitd` binary in Xcode to simplify
+distribution and development.
 
 ### Features
 
-It eventually supports: semantic completion, GoTo definition, diagnostics,
-symbol usage, and documentation displaying. It should support compile command
-configuration via flags and a JSON compilation database to support complex
-projects, similar to clang's JSON compilation database.
+It should support:
+- code completion
+- semantic diagnostics
+- symbol navigation ( GoTo definition and more )
+- symbol usage
+- documentation rendering
+- semantic searches
 
-### HTTP Server
+It should also support compile command configuration via flags and a JSON
+compilation database to support complex projects, similar to clang's JSON
+compilation database.  Finally, it should be blazing fast and stable.
 
-Completion logic runs out of process on an HTTP server. The server is primarily
-designed to work with YouCompleteMe YCMD. It uses HTTP as a protocol to
-integrate with YouCompleteMe:
-[https://val.markovic.io/articles/youcompleteme-as-a-server](YouCompleteMe)
+### HTTP Frontend
 
-The frontend is build on [Beast](https://github.com/vinniefalco/Beast) HTTP and Boost ASIO
+Semantic abilities are exposed through an HTTP protocol. It should be high
+performance and serve multiple requests at a time to meet the needs of users
+who can make a lot of requests. The protocol is a JSON protocol to simplify
+consumer usage and minimize dependencies.
 
+The HTTP frontend is built on [Beast](https://github.com/vinniefalco/Beast)
+HTTP and Boost ASIO, a platform for constructing high performance web services.
+
+From a users perspective, logic runs out of the text editor's processes on the
+HTTP server. The server is primarily designed to work with YCMD. See [Valloric's](https://val.markovic.io/articles/youcompleteme-as-a-server)
+article for more on this.
 
 ## Development
 
-In the root directory, you can setup the repository with 1 line
-
+`bootstrap` the repository and build.
 ```
   ./bootstrap
 ```
 
-I log random musings about developing and using this in `notes.txt`. 
+I log random musings about developing this and more in `notes.txt`.
 
 This project is still in early phases, and development happens sporadically.
 
 **Contributions welcome**
 
 ### Ideas for starter projects
+
 - Write documentation that explains how to use this
 - Improve build system and dependency integration
 - Design an end to end integration testing system
@@ -112,8 +125,9 @@ This project is still in early phases, and development happens sporadically.
 - Add the ability to bootstrap a project from an Xcode project
 
 ### Ideas for YCM starter projects
+
 - Integrate Diagnostic support with YouCompleteMe
-- Add support for swift `.ycm_extra_conf`s in YCMD.
+- Add support for Swift `.ycm_extra_conf`s in YCMD.
 
 ## Acknowledgements 
 
