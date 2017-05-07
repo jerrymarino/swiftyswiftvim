@@ -1,8 +1,3 @@
-/**
- * Beast HTTP server example with long running operations and lib dispatch.
- *
- * Note: Assume that we are calling dispatch_main() after running the server
- */
 #include <beast/core/handler_helpers.hpp>
 #include <beast/core/handler_ptr.hpp>
 #include <beast/core/placeholders.hpp>

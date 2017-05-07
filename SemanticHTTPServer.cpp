@@ -1,9 +1,3 @@
-/**
- * Beast HTTP server example with long running operations and lib dispatch.
- *
- * Note: Assume that we are calling dispatch_main() after running the server
- */
-
 #include "SemanticHTTPServer.hpp"
 #include "file_body.hpp"
 
