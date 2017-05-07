@@ -1,7 +1,7 @@
 #include "SemanticHTTPServer.hpp"
-#include "file_body.hpp"
-
+#include "Logging.hpp"
 #include "SwiftCompleter.hpp"
+#include "file_body.hpp"
 
 #include <beast/core/handler_helpers.hpp>
 #include <beast/core/handler_ptr.hpp>
@@ -27,9 +27,9 @@
 #include <thread>
 #include <utility>
 
-typedef enum LogLevel { none, debug } LogLevel;
+using namespace ssvim;
 
-struct service_context {
+struct ServiceContext {
   std::string secret;
   LogLevel logging;
 };
@@ -60,28 +60,11 @@ class Session;
 using EndpointFn = std::function<void(std::shared_ptr<Session>)>;
 
 class EndpointImpl : public std::enable_shared_from_this<EndpointImpl> {
-public:
-  EndpointImpl(EndpointFn start) : _start(start) {}
-
-  void handleRequest(std::shared_ptr<Session> session) {
-    std::cout << "___HANDLE_REQUEST";
-    std::cout.flush();
-    // Assume we have a dispatch main queue running.
-    //
-    // Run the endpoint on the background thread
-    auto kickoff = _start;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0),
-                   ^{
-                     std::cout << "___START_BACKGROUND";
-                     std::cout.flush();
-                     // TODO: Exception safety
-                     // Assume we have a dispatch main queue running.
-                     kickoff(session);
-                   });
-  }
-
-private:
   EndpointFn _start;
+
+public:
+  EndpointImpl(EndpointFn start);
+  void handleRequest(std::shared_ptr<Session> session);
 };
 
 using namespace ssvim;
@@ -98,11 +81,12 @@ response<string_body> errorResponse(req_type request, std::string message);
 class Session : public std::enable_shared_from_this<Session> {
   streambuf _streambuf;
   socket_type _socket;
-  service_context _context;
+  ServiceContext _context;
   boost::asio::io_service::strand _strand;
   req_type _request;
   std::map<std::string, EndpointImpl> _endpoints;
   EndpointImpl *_endpoint;
+  Logger _logger;
 
 public:
   Session(Session &&) = default;
@@ -110,17 +94,11 @@ public:
   Session &operator=(Session &&) = delete;
   Session &operator=(Session const &) = delete;
 
-  Session(socket_type &&sock, service_context ctx)
+  Session(socket_type &&sock, ServiceContext ctx)
       : _socket(std::move(sock)), _context(ctx),
-        _strand(_socket.get_io_service()) {
+        _strand(_socket.get_io_service()), _logger(LogLevelError) {
     _endpoint = NULL;
-    // TODO: Come up with a better way
-    if (ctx.logging == debug) {
-      std::cout << "Secret: ";
-      std::cout << _context.secret;
-      std::cout << "\n";
-    }
-
+    _logger.log(LogLevelInfo, "Secret:", _context.secret);
     // Setup Endpoints.
     // TODO: Perhaps this can be done statically
     _endpoints = std::map<std::string, EndpointImpl>();
@@ -135,9 +113,18 @@ public:
     insert_endpoint("/slow_test", makeSlowTestEndpoint());
   }
 
-  void start() { doRead(); }
+public:
+  void start() {
+    doRead();
+  }
 
-  std::shared_ptr<Session> detach() { return shared_from_this(); }
+  Logger logger() {
+    return _logger;
+  }
+
+  std::shared_ptr<Session> detach() {
+    return shared_from_this();
+  }
 
   void doRead() {
     async_read(_socket, _streambuf, _request,
@@ -146,7 +133,7 @@ public:
   }
 
   void onRead(error_code const &ec) {
-    std::cout << "__ONREAD";
+    _logger << "ONREAD";
     if (ec)
       return fail(ec, "read");
     auto path = _request.url;
@@ -157,16 +144,11 @@ public:
     // - Perform a long running task.
     // - Schedule write for the response body
     auto detachedSession = detach();
-
-    if (_context.logging == debug) {
-      std::cout << "__WILL_READ: " << path << "\n";
-      std::cout.flush();
-    }
+    _logger << "WILL_READ: " << path;
 
     auto endpointImpl = _endpoints.find(std::string(path));
     if (endpointImpl != _endpoints.end()) {
-      std::cout << "__GOTEP:";
-      std::cout.flush();
+      _logger << "GOTEP:";
       _endpoint = &endpointImpl->second;
       _endpoint->handleRequest(detachedSession);
       return;
@@ -184,7 +166,9 @@ public:
 
 #pragma mark - State
 
-  req_type request() { return _request; }
+  req_type request() {
+    return _request;
+  }
 
 #pragma mark - Writing messages
 
@@ -197,7 +181,7 @@ public:
 
   void fail(error_code ec, std::string what) {
     auto message = what + " and: " + ec.message();
-    std::cout << message;
+    _logger << message;
   }
 
   // Schedule an error message
@@ -212,18 +196,21 @@ public:
 #pragma mark - Server
 
 void SemanticHTTPServer::onAccept(error_code ec) {
-  if (!_acceptor.is_open())
+  if (!_acceptor.is_open()) {
     return;
-  if (ec)
-    return fail(ec, "accept");
+  }
+  if (ec) {
+    std::cerr << ec.message() << "accept";
+    return;
+  }
   socket_type sock(std::move(_socket));
   _acceptor.async_accept(_socket, std::bind(&SemanticHTTPServer::onAccept, this,
                                             asio::placeholders::error));
 
   // Start a new Session.
-  service_context ctx;
+  ServiceContext ctx;
   ctx.secret = "Some Secret";
-  ctx.logging = debug;
+  ctx.logging = LogLevelInfo;
   auto session = std::make_shared<Session>(std::move(sock), ctx);
   session->start();
 }
@@ -244,7 +231,7 @@ EndpointImpl makeStatusEndpoint() {
 
 EndpointImpl makeShutdownEndpoint() {
   return EndpointImpl([&](std::shared_ptr<Session> session) {
-    std::cout << "Recieved Shutdown Request";
+    session->logger() << "Recieved Shutdown Request";
     response<string_body> res;
     res.status = 200;
     res.version = session->request().version;
@@ -253,10 +240,29 @@ EndpointImpl makeShutdownEndpoint() {
     prepare(res);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                    dispatch_get_main_queue(), ^{
-                     std::cout << "Shutting down...";
+                     session->logger() << "Shutting down...";
                      exit(0);
                    });
     session->write(res);
+  });
+}
+
+EndpointImpl::EndpointImpl(EndpointFn start) : _start(start) {
+}
+
+void EndpointImpl::handleRequest(std::shared_ptr<Session> session) {
+  auto logger = session->logger();
+  logger << "HANDLE_REQUEST";
+  logger << session->request().url;
+  // Assume we have a dispatch main queue running.
+  //
+  // Run the endpoint on the background thread
+  auto strongSelf = this;
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+    session->logger() << "_START_BACKGROUND";
+    // TODO: Exception safety
+    // Assume we have a dispatch main queue running.
+    strongSelf->_start(session);
   });
 }
 
@@ -290,8 +296,9 @@ const std::vector<T> as_vector(ptree const &pt, ptree::key_type const &key) {
 EndpointImpl makeCompletionsEndpoint() {
   return EndpointImpl([&](std::shared_ptr<Session> session) {
     // Parse in data
+    auto logger = session->logger();
     auto bodyString = session->request().body;
-    std::cout << bodyString;
+    logger << bodyString;
     auto bodyJSON = readJSONPostBody(bodyString);
 
     auto fileName = bodyJSON.get<std::string>("file_name");
@@ -299,11 +306,11 @@ EndpointImpl makeCompletionsEndpoint() {
     auto line = bodyJSON.get<int>("line");
     auto contents = bodyJSON.get<std::string>("contents");
     auto flags = as_vector<std::string>(bodyJSON, "flags");
-    std::cout << "file_name:" << fileName;
-    std::cout << "column:" << column;
-    std::cout << "line:" << line;
+    logger << "file_name:" << fileName;
+    logger << "column:" << column;
+    logger << "line:" << line;
     for (auto &f : flags) {
-      std::cout << "flags:" << f;
+      logger << "flags:" << f;
     }
 
     using namespace ssvim;
@@ -315,14 +322,12 @@ EndpointImpl makeCompletionsEndpoint() {
     unsaved.fileName = fileName;
     files.push_back(unsaved);
 
-    std::cout << "__SEND_REQ";
-    std::cout.flush();
+    logger << "SEND_REQ";
     auto candidates = completer.CandidatesForLocationInFile(
         fileName, line, column, files, flags);
 
-    std::cout << "__GOT_CANDIDATES";
-    std::cout << candidates;
-    std::cout.flush();
+    logger << "GOT_CANDIDATES";
+    session->logger().log(LogLevelExtreme, candidates);
     // Build out response
     response<string_body> res;
     res.status = 200;
@@ -345,15 +350,15 @@ EndpointImpl makeDiagnosticsEndpoint() {
   return EndpointImpl([&](std::shared_ptr<Session> session) {
     // Parse in data
     auto bodyString = session->request().body;
-    std::cout << bodyString;
+    session->logger() << bodyString;
     auto bodyJSON = readJSONPostBody(bodyString);
 
     auto fileName = bodyJSON.get<std::string>("file_name");
     auto contents = bodyJSON.get<std::string>("contents");
     auto flags = as_vector<std::string>(bodyJSON, "flags");
-    std::cout << "file_name:" << fileName;
+    session->logger() << "file_name:" << fileName;
     for (auto &f : flags) {
-      std::cout << "flags:" << f;
+      session->logger().log(LogLevelInfo, "flags:", f);
     }
 
     using namespace ssvim;
@@ -365,13 +370,11 @@ EndpointImpl makeDiagnosticsEndpoint() {
     unsaved.fileName = fileName;
     files.push_back(unsaved);
 
-    std::cout << "__SEND_REQ";
-    std::cout.flush();
+    session->logger() << "SEND_REQ";
     auto diagnostics = completer.DiagnosticsForFile(fileName, files, flags);
 
-    std::cout << "__GOT_DIAGNOSTICS";
-    std::cout << diagnostics;
-    std::cout.flush();
+    session->logger() << "GOT_DIAGNOSTICS";
+    session->logger().log(LogLevelExtreme, diagnostics);
     // Build out response
     response<string_body> res;
     res.status = 200;
@@ -389,9 +392,8 @@ EndpointImpl makeSlowTestEndpoint() {
     // Wait for 10 seconds to write hello world.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC),
                    dispatch_get_main_queue(), ^{
-                     std::cout << "Enter main: ";
-                     std::cout << session->request().url;
-                     std::cout.flush();
+                     session->logger() << "Enter main: ";
+                     session->logger() << session->request().url;
 
                      response<string_body> res;
                      res.status = 200;

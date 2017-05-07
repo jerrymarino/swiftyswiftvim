@@ -26,13 +26,14 @@ public:
   SwiftCompleter();
   ~SwiftCompleter();
 
-  std::string
+  const std::string
   CandidatesForLocationInFile(const std::string &filename, int line, int column,
                               const std::vector<UnsavedFile> &unsavedFiles,
                               const std::vector<std::string> &flags);
 
-  std::string DiagnosticsForFile(const std::string &filename,
-                                 const std::vector<UnsavedFile> &unsavedFiles,
-                                 const std::vector<std::string> &flags);
+  const std::string
+  DiagnosticsForFile(const std::string &filename,
+                     const std::vector<UnsavedFile> &unsavedFiles,
+                     const std::vector<std::string> &flags);
 };
 } // namespace ssvim

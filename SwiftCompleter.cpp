@@ -10,8 +10,15 @@
 #include <thread>
 #include <vector>
 
+#include "Logging.hpp"
 #include "SwiftCompleter.hpp"
 #include "sourcekitd/sourcekitd.h"
+
+// This is kind of ghetto. Most of this was written as C functions
+// so there isn't a good way to inject this throughout all of the
+// code.
+// Write these messages to a custom channel "SEMA"
+static ssvim::Logger logger(ssvim::LogLevelExtreme, "SEMA");
 
 #pragma mark - Futures
 
@@ -97,7 +104,8 @@ static void InitSourceKitD() {
   });
 }
 
-static void ShutdowSourceKitD() {}
+static void ShutdowSourceKitD() {
+}
 
 static char *PrintResponse(sourcekitd_response_t resp) {
   auto dict = sourcekitd_response_get_value(resp);
@@ -117,8 +125,7 @@ static void NotificationReceiver(sourcekitd_response_t resp) {
   // Ideally, there should be a nice way to init a sourcekitd session in a way
   // that has a handler only for semantic info
   auto semaName = sourcekitd_variant_dictionary_get_string(payload, KeyName);
-  std::cout << "DID_GET_SEMA: " << semaName;
-  std::cout.flush();
+  logger << "DID_GET_SEMA: " << semaName;
   sourcekitd_object_t edReq =
       sourcekitd_request_dictionary_create(nullptr, nullptr, 0);
   sourcekitd_request_dictionary_set_uid(
@@ -129,8 +136,7 @@ static void NotificationReceiver(sourcekitd_response_t resp) {
   auto semaResponse = sourcekitd_send_request_sync(edReq);
   sourcekitd_response_description_dump(semaResponse);
   sourcekitd_request_release(edReq);
-  std::cout << "__SEMA_DONE";
-  std::cout.flush();
+  logger << "SEMA_DONE";
   SemaFutureChannel.set(semaName, PrintResponse(semaResponse));
 }
 
@@ -225,10 +231,10 @@ static bool BasicRequest(sourcekitd_uid_t requestUID, const char *name,
   }
   sourcekitd_request_dictionary_set_value(request, KeyCompilerArgs, args);
   sourcekitd_request_release(args);
-  std::cout << "\n__SENDNOW\n";
+  logger << "SENDNOW";
   bool result = SendRequestSync(request, func);
   sourcekitd_request_release(request);
-  std::cout << "\n__ENDSEND\n";
+  logger << "ENDSEND";
   return result;
 }
 
@@ -369,14 +375,13 @@ static int CompletionOpen(CompletionContext &ctx, char **oresponse) {
 // gone through parsing.
 static int EditorOpen(CompletionContext &ctx, char **oresponse) {
   auto contents = ctx.unsavedFiles[0].contents.c_str();
-  std::cout << "__CTX:";
-  std::cout << ctx.sourceFilename;
-  std::cout << contents;
+  logger << "CTX:";
+  logger << ctx.sourceFilename;
+  logger << contents;
   for (auto &arg : ctx.compilerArgs()) {
-    std::cout << "__ARG:";
-    std::cout << arg;
+    logger << "ARG:";
+    logger << arg;
   }
-  std::cout.flush();
   bool isError =
       BasicRequest(sourcekitd_uid_get_from_cstr("source.request.editor.open"),
                    ctx.sourceFilename.data(), contents, ctx.compilerArgs(),
@@ -387,8 +392,6 @@ static int EditorOpen(CompletionContext &ctx, char **oresponse) {
                      *oresponse = PrintResponse(response);
                      return false;
                    });
-  std::cout << "isError:";
-  std::cout << isError;
   return isError;
 }
 
@@ -415,11 +418,15 @@ static int EditorReplaceText(CompletionContext &ctx, char **oresponse) {
 
 namespace ssvim {
 
-SwiftCompleter::SwiftCompleter() { InitSourceKitD(); }
+SwiftCompleter::SwiftCompleter() {
+  InitSourceKitD();
+}
 
-SwiftCompleter::~SwiftCompleter() { ShutdowSourceKitD(); }
+SwiftCompleter::~SwiftCompleter() {
+  ShutdowSourceKitD();
+}
 
-std::string SwiftCompleter::CandidatesForLocationInFile(
+const std::string SwiftCompleter::CandidatesForLocationInFile(
     const std::string &filename, int line, int column,
     const std::vector<UnsavedFile> &unsavedFiles,
     const std::vector<std::string> &flags) {
@@ -435,7 +442,7 @@ std::string SwiftCompleter::CandidatesForLocationInFile(
   return response;
 }
 
-std::string
+const std::string
 SwiftCompleter::DiagnosticsForFile(const std::string &filename,
                                    const std::vector<UnsavedFile> &unsavedFiles,
                                    const std::vector<std::string> &flags) {
@@ -445,19 +452,17 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   ctx.flags = flags;
   ctx.line = 0;
   ctx.column = 0;
-  std::cout << "WillOpen\n";
+  logger << "WILLOPEN";
   char *response = NULL;
   EditorOpen(ctx, &response);
-  std::cout << "DidOpen\n";
-  std::cout << response;
+  logger << "DIDOPEN";
+  logger << response;
   EditorReplaceText(ctx, &response);
-  std::cout << response;
-  std::cout << "\n";
+  logger << response;
 
   auto future = SemaFutureChannel.future(filename);
   auto semaresult = future.get();
-  std::cout << semaresult;
-  std::cout << "\n";
+  logger << semaresult;
   return semaresult;
 }
 } // namespace ssvim

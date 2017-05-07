@@ -36,7 +36,8 @@ struct file_body {
 
     template <bool isRequest, class Fields>
     writer(message<isRequest, file_body, Fields> const &m) noexcept
-        : path_(m.body) {}
+        : path_(m.body) {
+    }
 
     ~writer() {
       if (file_)
@@ -51,7 +52,9 @@ struct file_body {
         size_ = boost::filesystem::file_size(path_);
     }
 
-    std::uint64_t content_length() const noexcept { return size_; }
+    std::uint64_t content_length() const noexcept {
+      return size_;
+    }
 
     template <class WriteFunction>
     bool write(error_code &ec, WriteFunction &&wf) noexcept {

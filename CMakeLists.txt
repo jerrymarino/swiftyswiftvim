@@ -57,6 +57,7 @@ set(CMAKE_CXX_FLAGS ${SKT_FLAGS})
 
 add_executable (http_server
     file_body.hpp
+    Logging.hpp
     SemanticHTTPServer.hpp
     SemanticHTTPServer.cpp
     SwiftCompleter.hpp
@@ -65,6 +66,7 @@ add_executable (http_server
 )
 
 add_executable (test_driver
+    Logging.hpp
     SwiftCompleter.hpp
     SwiftCompleter.cpp
     Driver.cpp

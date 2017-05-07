@@ -1,3 +1,4 @@
+#include "Logging.hpp"
 #include "SwiftCompleter.hpp"
 #include <dispatch/dispatch.h>
 #include <iostream>
@@ -41,6 +42,9 @@ std::string contents = "// \n\
     } \n\
 \n";
 
+using namespace ssvim;
+static ssvim::Logger logger(LogLevelInfo);
+
 int wrapped_main() {
   Runner runner;
   std::cout << contents;
@@ -53,12 +57,13 @@ int wrapped_main() {
 
   auto exampleFilePath = "/tmp/x";
   auto result = runner.complete(exampleFilePath, contents, flags, 19, 13);
-  std::cout << result;
-  std::cout << "__DONE";
+  logger << result;
+  logger << "Done";
   exit(0);
 }
 
 int main() {
+  logger << "Running Test Driver";
   dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
     wrapped_main();
   });

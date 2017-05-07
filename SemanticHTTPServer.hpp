@@ -30,7 +30,6 @@ class SemanticHTTPServer {
   using socket_type = boost::asio::ip::tcp::socket;
 
   std::mutex _sharedMutex;
-  bool _logging_enabled = true;
   boost::asio::io_service _ioService;
   boost::asio::ip::tcp::acceptor _acceptor;
   socket_type _socket;
@@ -59,13 +58,6 @@ public:
       t.join();
   }
 
-  template <class... Args> void log(Args const &... args) {
-    if (_logging_enabled) {
-      std::lock_guard<std::mutex> lock(_sharedMutex);
-      log_args(args...);
-    }
-  }
-
 private:
   template <class Stream, class Handler, bool isRequest, class Body,
             class Fields>
@@ -78,7 +70,8 @@ private:
       data(Handler &handler, Stream &s_,
            message<isRequest, Body, Fields> &&_sharedMutex)
           : cont(beast_asio_helpers::is_continuation(handler)), s(s_),
-            m(std::move(_sharedMutex)) {}
+            m(std::move(_sharedMutex)) {
+      }
     };
 
     handler_ptr<data, Handler> d_;
@@ -129,18 +122,6 @@ private:
     writeOp<Stream, typename std::decay<DeducedHandler>::type, isRequest, Body,
             Fields>{std::forward<DeducedHandler>(handler), stream,
                     std::move(msg)};
-  }
-
-  void log_args() {}
-
-  template <class Arg, class... Args>
-  void log_args(Arg const &arg, Args const &... args) {
-    std::cerr << arg;
-    log_args(args...);
-  }
-
-  void fail(error_code ec, std::string what) {
-    log(what, ": ", ec.message(), "\n");
   }
 
   void onAccept(error_code ec);
