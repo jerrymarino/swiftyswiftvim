@@ -29,7 +29,7 @@ using promise_ty = std::promise<std::string> *;
 //  key.name: "/Users/aprilmarino/swiftyswiftvim/Examples/some_swift.swift"
 //  }
 
-class future_channel {
+class FutureChannel {
   std::map<std::string, std::vector<promise_ty>> _promises;
   std::mutex _shared_mutex;
 
@@ -106,7 +106,7 @@ static char *PrintResponse(sourcekitd_response_t resp) {
 }
 
 // A Future channel for Semantic notificaitons.
-static future_channel sema_future_channel;
+static FutureChannel SemaFutureChannel;
 
 static void NotificationReceiver(sourcekitd_response_t resp) {
   sourcekitd_response_description_dump(resp);
@@ -131,7 +131,7 @@ static void NotificationReceiver(sourcekitd_response_t resp) {
   sourcekitd_request_release(edReq);
   std::cout << "__SEMA_DONE";
   std::cout.flush();
-  sema_future_channel.set(semaName, PrintResponse(semaResponse));
+  SemaFutureChannel.set(semaName, PrintResponse(semaResponse));
 }
 
 #pragma mark - SourceKitD Completion Requests
@@ -454,7 +454,7 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   std::cout << response;
   std::cout << "\n";
 
-  auto future = sema_future_channel.future(filename);
+  auto future = SemaFutureChannel.future(filename);
   auto semaresult = future.get();
   std::cout << semaresult;
   std::cout << "\n";
