@@ -3,3 +3,5 @@
 *.pyc
 build
 *.DS_Store
+!vendor/.gitignore
+

@@ -1,0 +1,5 @@
+*
+!.gitignore
+!beast/
+!beast/.gitignore
+
