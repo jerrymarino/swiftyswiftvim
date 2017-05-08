@@ -1,24 +1,33 @@
-#include <beast/core/handler_helpers.hpp>
-#include <beast/core/handler_ptr.hpp>
-#include <beast/core/placeholders.hpp>
-#include <beast/core/streambuf.hpp>
-#include <beast/http.hpp>
-#include <boost/asio.hpp>
-#include <cstddef>
-#include <cstdio>
-#include <dispatch/dispatch.h>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <sstream>
-#include <thread>
-#include <utility>
+#import "Logging.hpp"
+#import <beast/core/handler_helpers.hpp>
+#import <beast/core/handler_ptr.hpp>
+#import <beast/core/placeholders.hpp>
+#import <beast/core/streambuf.hpp>
+#import <beast/http.hpp>
+#import <boost/asio.hpp>
+#import <cstddef>
+#import <cstdio>
+#import <iostream>
+#import <memory>
+#import <mutex>
+#import <sstream>
+#import <thread>
+#import <utility>
 
 namespace ssvim {
 namespace http {
 
 using namespace beast;
 using namespace beast::http;
+
+struct ServiceContext {
+public:
+  const std::string secret;
+  const LogLevel logLevel;
+  ServiceContext(std::string secret, LogLevel logLevel)
+      : secret(secret), logLevel(logLevel) {
+  }
+};
 
 /**
  * SSVI HTTP Server is a HTTP front end for Swift Semantic
@@ -35,11 +44,13 @@ class SemanticHTTPServer {
   socket_type _socket;
   std::string _root_path;
   std::vector<std::thread> _thread;
+  ServiceContext _context;
 
 public:
   SemanticHTTPServer(endpoint_type const &ep, std::size_t threads,
-                     std::string const &root)
-      : _acceptor(_ioService), _socket(_ioService), _root_path(root) {
+                     std::string const &root, ServiceContext const context)
+      : _acceptor(_ioService), _socket(_ioService), _root_path(root),
+        _context(context) {
     _acceptor.open(ep.protocol());
     _acceptor.bind(ep);
     _acceptor.listen(boost::asio::socket_base::max_connections);

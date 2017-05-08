@@ -1,5 +1,6 @@
-#include <string>
-#include <vector>
+#import "Logging.hpp"
+#import <string>
+#import <vector>
 
 namespace ssvim {
 
@@ -22,8 +23,10 @@ public:
  * The completions match the API used within sourcekit
  */
 class SwiftCompleter {
+  Logger _logger;
+
 public:
-  SwiftCompleter();
+  SwiftCompleter(LogLevel logLevel);
   ~SwiftCompleter();
 
   const std::string

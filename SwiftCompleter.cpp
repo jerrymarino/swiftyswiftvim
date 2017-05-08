@@ -1,24 +1,18 @@
-#include <assert.h>
-#include <dispatch/dispatch.h>
-#include <fstream>
-#include <functional>
-#include <future>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <thread>
-#include <vector>
+#import <assert.h>
+#import <dispatch/dispatch.h>
+#import <fstream>
+#import <functional>
+#import <future>
+#import <iostream>
+#import <map>
+#import <sourcekitd/sourcekitd.h>
+#import <sstream>
+#import <string>
+#import <thread>
+#import <vector>
 
-#include "Logging.hpp"
-#include "SwiftCompleter.hpp"
-#include <sourcekitd/sourcekitd.h>
-
-// This is kind of ghetto. Most of this was written as C functions
-// so there isn't a good way to inject this throughout all of the
-// code.
-// Write these messages to a custom channel "SEMA"
-static ssvim::Logger logger(ssvim::LogLevelExtreme, "SEMA");
+#import "Logging.hpp"
+#import "SwiftCompleter.hpp"
 
 #pragma mark - Futures
 
@@ -81,31 +75,56 @@ static auto KeyName = sourcekitd_uid_get_from_cstr("key.name");
 
 #pragma mark - SourceKitD Notifications
 
-static void NotificationReceiver(sourcekitd_response_t resp);
+using HandlerFunc = std::function<bool(sourcekitd_response_t)>;
 
-// Initialize SourceKitD
-//
-// Here, we are set the notification to register for callbacks around editor
-// updates. This callback is invoked on the main thread.
-//
-// It is currently designed to have a single instance "initialized" for a given
-// program. It is lazily started, and never torn down.
-//
-// This means that:
-// - Don't do any level of processing or blocking i/o in NotificationHandler
-// FIXME!!! ( it currently does this )
-static void InitSourceKitD() {
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    sourcekitd_initialize();
-    sourcekitd_set_notification_handler(^(sourcekitd_response_t resp) {
-      NotificationReceiver(resp);
-    });
-  });
-}
+namespace ssvim {
 
-static void ShutdowSourceKitD() {
-}
+// Context for a given completion
+struct CompletionContext {
+  // The current source source file's absolute path
+  std::string sourceFilename;
+
+  // Position of the completion
+  unsigned line;
+  unsigned column;
+
+  std::vector<std::string> flags;
+
+  // Unsaved files
+  std::vector<UnsavedFile> unsavedFiles;
+
+  // Return the args based on the current flags
+  // and default to the OSX SDK if none.
+  std::vector<std::string> compilerArgs() {
+    if (flags.size() == 0) {
+      return DefaultOSXArgs();
+    }
+
+    return flags;
+  }
+
+  std::vector<std::string> DefaultOSXArgs() {
+    return {
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/"
+        "MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+        "-target", "x86_64-apple-macosx10.12",
+    };
+  }
+};
+
+class SourceKitService {
+  void NotificationReceiver(sourcekitd_response_t resp);
+  Logger _logger;
+
+public:
+  SourceKitService(LogLevel logLevel);
+  int CompletionUpdate(CompletionContext &ctx, char **oresponse);
+  int CompletionOpen(CompletionContext &ctx, char **oresponse);
+  int EditorOpen(CompletionContext &ctx, char **oresponse);
+  int EditorReplaceText(CompletionContext &ctx, char **oresponse);
+};
+} // namespace ssvim
 
 static char *PrintResponse(sourcekitd_response_t resp) {
   auto dict = sourcekitd_response_get_value(resp);
@@ -113,19 +132,19 @@ static char *PrintResponse(sourcekitd_response_t resp) {
   return JSONString;
 }
 
-// A Future channel for Semantic notificaitons.
+// A Future channel for Semantic notifications.
 static FutureChannel SemaFutureChannel;
 
-static void NotificationReceiver(sourcekitd_response_t resp) {
+void ssvim::SourceKitService::NotificationReceiver(sourcekitd_response_t resp) {
   sourcekitd_response_description_dump(resp);
   sourcekitd_variant_t payload = sourcekitd_response_get_value(resp);
+
   // In order to get the semantic info, we have to wait for the editor to be
-  // ready
-  // FIXME: factor out all of the diagnostic code out into a new file
-  // Ideally, there should be a nice way to init a sourcekitd session in a way
-  // that has a handler only for semantic info
+  // ready. It will notify us on the main thread and we can make another
+  // request. This needs to happen after various requests ( mainly only used
+  // for editor.replacetext now.
   auto semaName = sourcekitd_variant_dictionary_get_string(payload, KeyName);
-  logger << "DID_GET_SEMA: " << semaName;
+  _logger << "DID_GET_SEMA: " << semaName;
   sourcekitd_object_t edReq =
       sourcekitd_request_dictionary_create(nullptr, nullptr, 0);
   sourcekitd_request_dictionary_set_uid(
@@ -133,16 +152,19 @@ static void NotificationReceiver(sourcekitd_response_t resp) {
       sourcekitd_uid_get_from_cstr("source.request.editor.replacetext"));
   sourcekitd_request_dictionary_set_string(edReq, KeyName, semaName);
   sourcekitd_request_dictionary_set_string(edReq, KeySourceText, "");
+
+  // Send the request in the notification
+  // FIXME: Move off of the main thread!
   auto semaResponse = sourcekitd_send_request_sync(edReq);
   sourcekitd_response_description_dump(semaResponse);
   sourcekitd_request_release(edReq);
-  logger << "SEMA_DONE";
+  _logger << "SEMA_DONE";
   SemaFutureChannel.set(semaName, PrintResponse(semaResponse));
 }
 
-#pragma mark - SourceKitD Completion Requests
+#pragma mark - SourceKit Completion Request Helper Functions
 
-static sourcekitd_object_t createBaseRequest(sourcekitd_uid_t requestUID,
+static sourcekitd_object_t CreateBaseRequest(sourcekitd_uid_t requestUID,
                                              const char *name,
                                              unsigned offset) {
   sourcekitd_object_t request =
@@ -153,30 +175,18 @@ static sourcekitd_object_t createBaseRequest(sourcekitd_uid_t requestUID,
   return request;
 }
 
-using HandlerFunc = std::function<bool(sourcekitd_response_t)>;
-
 static bool SendRequestSync(sourcekitd_object_t request, HandlerFunc func) {
   auto response = sourcekitd_send_request_sync(request);
   bool result = func(response);
-  // FIXME:!
-  //  sourcekitd_response_dispose(response);
+  sourcekitd_response_dispose(response);
   return result;
-}
-
-std::vector<std::string> DefaultOSXArgs() {
-  return {
-      "-sdk",
-      "/Applications/Xcode.app/Contents/Developer/Platforms/"
-      "MacOSX.platform/Developer/SDKs/MacOSX.sdk",
-      "-target", "x86_64-apple-macosx10.12",
-  };
 }
 
 static bool CodeCompleteRequest(sourcekitd_uid_t requestUID, const char *name,
                                 unsigned offset, const char *sourceText,
                                 std::vector<std::string> compilerArgs,
                                 const char *filterText, HandlerFunc func) {
-  auto request = createBaseRequest(requestUID, name, offset);
+  auto request = CreateBaseRequest(requestUID, name, offset);
   sourcekitd_request_dictionary_set_string(request, KeySourceFile, name);
   sourcekitd_request_dictionary_set_string(request, KeySourceText, sourceText);
 
@@ -231,47 +241,19 @@ static bool BasicRequest(sourcekitd_uid_t requestUID, const char *name,
   }
   sourcekitd_request_dictionary_set_value(request, KeyCompilerArgs, args);
   sourcekitd_request_release(args);
-  logger << "SENDNOW";
   bool result = SendRequestSync(request, func);
   sourcekitd_request_release(request);
-  logger << "ENDSEND";
   return result;
 }
 
 using namespace ssvim;
-
-// Context for a given completion
-
-struct CompletionContext {
-  // The current source source file's absolute path
-  std::string sourceFilename;
-
-  // Position of the completion
-  unsigned line;
-  unsigned column;
-
-  std::vector<std::string> flags;
-
-  // Unsaved files
-  std::vector<UnsavedFile> unsavedFiles;
-
-  // Return the args based on the current flags
-  // and default to the OSX SDK if none.
-  std::vector<std::string> compilerArgs() {
-    if (flags.size() == 0) {
-      return DefaultOSXArgs();
-    }
-
-    return flags;
-  }
-};
 
 // Get a clean file and offset for completion.
 //
 // The file ends after the first interesting character, which may prevent
 // completing symbols declared after the offset.
 //
-// This seemend necessary on Swift V2 when it was first written, but hopefully
+// This seemed necessary on Swift V2 when it was first written, but hopefully
 // it can be improved.
 static void GetOffset(CompletionContext &ctx, unsigned *offset,
                       std::string *CleanFile) {
@@ -327,8 +309,32 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
   }
 }
 
+SourceKitService::SourceKitService(ssvim::LogLevel logLevel)
+    : _logger(logLevel, "SKT") {
+  // Initialize SourceKitD
+  //
+  // Here, we are set the notification to register for callbacks around editor
+  // updates. This callback is invoked on the main thread.
+  //
+  // It is currently designed to have a single instance "initialized" for a
+  // given program. It is lazily started, and never torn down. It manages
+  // caching internally per session. There is an issue in SourceKitD that
+  // causes us to never tear it down.
+  //
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    sourcekitd_initialize();
+    sourcekitd_set_notification_handler(^(sourcekitd_response_t resp) {
+      // WARNING ( called on dispatch_main_queue )
+      NotificationReceiver(resp);
+    });
+  });
+}
+
 // Update the file and get latest results.
-static int CompletionUpdate(CompletionContext &ctx, char **oresponse) {
+int SourceKitService::CompletionUpdate(CompletionContext &ctx,
+                                       char **oresponse) {
+  _logger << "WILL_COMPLETION_UPDATE";
   sourcekitd_uid_t RequestCodeCompleteUpdate =
       sourcekitd_uid_get_from_cstr("source.request.codecomplete.update");
   unsigned CodeCompletionOffset = 0;
@@ -343,14 +349,16 @@ static int CompletionUpdate(CompletionContext &ctx, char **oresponse) {
           return true;
         }
         *oresponse = PrintResponse(response);
+        _logger.log(LogLevelExtreme, *oresponse);
         return false;
       });
-
+  _logger << "DID_COMPLETION_UPDATE";
   return isError;
 }
 
 // Open the connection and get the first set of results.
-static int CompletionOpen(CompletionContext &ctx, char **oresponse) {
+int SourceKitService::CompletionOpen(CompletionContext &ctx, char **oresponse) {
+  _logger << "WILL_COMPLETION_OPEN";
   sourcekitd_uid_t RequestCodeCompleteOpen =
       sourcekitd_uid_get_from_cstr("source.request.codecomplete.open");
   unsigned CodeCompletionOffset = 0;
@@ -365,23 +373,19 @@ static int CompletionOpen(CompletionContext &ctx, char **oresponse) {
           return true;
         }
         *oresponse = PrintResponse(response);
+        _logger.log(LogLevelExtreme, *oresponse);
         return false;
       });
+  _logger << "DID_COMPLETION_OPEN";
   return isError;
 }
 
 // Open sourcekit in editor mode
 // On success, this returns a list of after the contents have
 // gone through parsing.
-static int EditorOpen(CompletionContext &ctx, char **oresponse) {
+int SourceKitService::EditorOpen(CompletionContext &ctx, char **oresponse) {
+  _logger << "WILL_EDITOR_OPEN";
   auto contents = ctx.unsavedFiles[0].contents.c_str();
-  logger << "CTX:";
-  logger << ctx.sourceFilename;
-  logger << contents;
-  for (auto &arg : ctx.compilerArgs()) {
-    logger << "ARG:";
-    logger << arg;
-  }
   bool isError =
       BasicRequest(sourcekitd_uid_get_from_cstr("source.request.editor.open"),
                    ctx.sourceFilename.data(), contents, ctx.compilerArgs(),
@@ -390,16 +394,20 @@ static int EditorOpen(CompletionContext &ctx, char **oresponse) {
                        return true;
                      }
                      *oresponse = PrintResponse(response);
+                     _logger.log(LogLevelExtreme, *oresponse);
                      return false;
                    });
+  _logger << "DID_EDITOR_OPEN";
   return isError;
 }
 
 // Editor replace text.
 // This command puts sourcekitd into semantic mode to get full
 // diagnostics.
-static int EditorReplaceText(CompletionContext &ctx, char **oresponse) {
+int SourceKitService::EditorReplaceText(CompletionContext &ctx,
+                                        char **oresponse) {
   std::string CleanFile;
+  _logger << "WILL_EDITOR_REPLACETEXT";
   auto contents = ctx.unsavedFiles[0].contents.c_str();
   bool isError = BasicRequest(
       sourcekitd_uid_get_from_cstr("source.request.editor.replacetext"),
@@ -409,8 +417,10 @@ static int EditorReplaceText(CompletionContext &ctx, char **oresponse) {
           return true;
         }
         *oresponse = PrintResponse(response);
+        _logger.log(LogLevelExtreme, *oresponse);
         return false;
       });
+  _logger << "DID_EDITOR_REPLACETEXT";
   return isError;
 }
 
@@ -418,12 +428,13 @@ static int EditorReplaceText(CompletionContext &ctx, char **oresponse) {
 
 namespace ssvim {
 
-SwiftCompleter::SwiftCompleter() {
-  InitSourceKitD();
+// SwiftCompleter composes SourceKitService requests together
+// to implement the higher level API.
+SwiftCompleter::SwiftCompleter(LogLevel logLevel)
+    : _logger(logLevel, "COMPLETER") {
 }
 
 SwiftCompleter::~SwiftCompleter() {
-  ShutdowSourceKitD();
 }
 
 const std::string SwiftCompleter::CandidatesForLocationInFile(
@@ -436,9 +447,11 @@ const std::string SwiftCompleter::CandidatesForLocationInFile(
   ctx.column = column;
   ctx.unsavedFiles = unsavedFiles;
   ctx.flags = flags;
+
+  SourceKitService sktService(_logger.level());
   char *response = NULL;
-  CompletionOpen(ctx, &response);
-  CompletionUpdate(ctx, &response);
+  sktService.CompletionOpen(ctx, &response);
+  sktService.CompletionUpdate(ctx, &response);
   return response;
 }
 
@@ -452,17 +465,18 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   ctx.flags = flags;
   ctx.line = 0;
   ctx.column = 0;
-  logger << "WILLOPEN";
-  char *response = NULL;
-  EditorOpen(ctx, &response);
-  logger << "DIDOPEN";
-  logger << response;
-  EditorReplaceText(ctx, &response);
-  logger << response;
 
+  SourceKitService sktService(_logger.level());
+  char *response = NULL;
+  sktService.EditorOpen(ctx, &response);
+  sktService.EditorReplaceText(ctx, &response);
+
+  // We need to wait until:
+  // - the document is updated
+  // - send a request for semantic info
+  // - request come back for semantic info
   auto future = SemaFutureChannel.future(filename);
   auto semaresult = future.get();
-  logger << semaresult;
   return semaresult;
 }
 } // namespace ssvim

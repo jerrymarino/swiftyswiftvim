@@ -1,38 +1,33 @@
-#include "SemanticHTTPServer.hpp"
-#include "Logging.hpp"
-#include "SwiftCompleter.hpp"
-#include "file_body.hpp"
+#import "SemanticHTTPServer.hpp"
+#import "Logging.hpp"
+#import "SwiftCompleter.hpp"
+#import "file_body.hpp"
 
-#include <beast/core/handler_helpers.hpp>
-#include <beast/core/handler_ptr.hpp>
-#include <beast/core/placeholders.hpp>
-#include <beast/core/streambuf.hpp>
-#include <beast/http.hpp>
+#import <beast/core/handler_helpers.hpp>
+#import <beast/core/handler_ptr.hpp>
+#import <beast/core/placeholders.hpp>
+#import <beast/core/streambuf.hpp>
+#import <beast/http.hpp>
 
-#include <boost/asio.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
+#import <boost/asio.hpp>
+#import <boost/property_tree/json_parser.hpp>
+#import <boost/property_tree/ptree.hpp>
 
-#include <dispatch/dispatch.h>
+#import <dispatch/dispatch.h>
 
-#include <cstddef>
-#include <cstdio>
-#include <functional>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <sstream>
-#include <string>
-#include <thread>
-#include <utility>
+#import <cstddef>
+#import <cstdio>
+#import <functional>
+#import <iostream>
+#import <map>
+#import <memory>
+#import <mutex>
+#import <sstream>
+#import <string>
+#import <thread>
+#import <utility>
 
 using namespace ssvim;
-
-struct ServiceContext {
-  std::string secret;
-  LogLevel logging;
-};
 
 static auto HeaderValueContentTypeJSON = "application/json";
 static auto HeaderKeyContentType = "Content-Type";
@@ -96,7 +91,7 @@ public:
 
   Session(socket_type &&sock, ServiceContext ctx)
       : _socket(std::move(sock)), _context(ctx),
-        _strand(_socket.get_io_service()), _logger(LogLevelError) {
+        _strand(_socket.get_io_service()), _logger(ctx.logLevel, "HTTP") {
     _endpoint = NULL;
     _logger.log(LogLevelInfo, "Secret:", _context.secret);
     // Setup Endpoints.
@@ -208,10 +203,7 @@ void SemanticHTTPServer::onAccept(error_code ec) {
                                             asio::placeholders::error));
 
   // Start a new Session.
-  ServiceContext ctx;
-  ctx.secret = "Some Secret";
-  ctx.logging = LogLevelInfo;
-  auto session = std::make_shared<Session>(std::move(sock), ctx);
+  auto session = std::make_shared<Session>(std::move(sock), _context);
   session->start();
 }
 
@@ -314,7 +306,7 @@ EndpointImpl makeCompletionsEndpoint() {
     }
 
     using namespace ssvim;
-    SwiftCompleter completer;
+    SwiftCompleter completer(session->logger().level());
 
     auto files = std::vector<UnsavedFile>();
     auto unsaved = UnsavedFile();
@@ -362,7 +354,7 @@ EndpointImpl makeDiagnosticsEndpoint() {
     }
 
     using namespace ssvim;
-    SwiftCompleter completer;
+    SwiftCompleter completer(session->logger().level());
 
     auto files = std::vector<UnsavedFile>();
     auto unsaved = UnsavedFile();

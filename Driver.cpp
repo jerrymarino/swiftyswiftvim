@@ -1,8 +1,8 @@
-#include "Logging.hpp"
-#include "SwiftCompleter.hpp"
-#include <dispatch/dispatch.h>
-#include <iostream>
-#include <string>
+#import "Logging.hpp"
+#import "SwiftCompleter.hpp"
+#import <dispatch/dispatch.h>
+#import <iostream>
+#import <string>
 
 using namespace ssvim;
 using namespace std;
@@ -11,7 +11,7 @@ struct Runner {
   std::string complete(std::string fileName, std::string fileContents,
                        std::vector<std::string> flags, unsigned line,
                        unsigned column) {
-    auto completer = SwiftCompleter();
+    auto completer = SwiftCompleter(LogLevelExtreme);
     auto files = std::vector<UnsavedFile>();
     auto unsavedFile = UnsavedFile();
     unsavedFile.contents = fileContents;

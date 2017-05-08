@@ -1,10 +1,12 @@
-#include "SemanticHTTPServer.hpp"
+#import "Logging.hpp"
+#import "SemanticHTTPServer.hpp"
 
-#include <boost/program_options.hpp>
-#include <dispatch/dispatch.h>
-#include <iostream>
+#import <boost/algorithm/string.hpp>
+#import <boost/program_options.hpp>
+#import <dispatch/dispatch.h>
+#import <iostream>
 
-void mainLoop() {
+static void RunMainLoop() {
   __block boost::asio::io_service *ios = new boost::asio::io_service();
   boost::asio::signal_set signals(*ios, SIGINT, SIGTERM);
   signals.async_wait([&](boost::system::error_code const &, int) {});
@@ -19,8 +21,19 @@ void mainLoop() {
   dispatch_main();
 }
 
+static auto LogLevelWithProgramOptionLog(std::string option) {
+  using namespace ssvim;
+  if (option == "DEBUG") {
+    return LogLevelExtreme;
+  } else if (option == "INFO") {
+    return LogLevelInfo;
+  } else {
+    // WARNING or other unknown types get minimal logging.
+    return LogLevelError;
+  }
+}
+
 int main(int ac, char const *av[]) {
-  using namespace ssvim::http;
   namespace po = boost::program_options;
   po::options_description desc("Options");
 
@@ -47,15 +60,19 @@ int main(int ac, char const *av[]) {
   std::string ip = vm["ip"].as<std::string>();
 
   std::size_t threads = vm["threads"].as<std::size_t>();
+  std::string log = vm["log"].as<std::string>();
 
   using endpoint_type = boost::asio::ip::tcp::endpoint;
   using address_type = boost::asio::ip::address;
+  using namespace ssvim;
+  using namespace ssvim::http;
 
+  std::cout << "__LISTENINGON: " << ip << ":" << port << std::endl;
+  std::cout.flush();
+  ServiceContext ctx("SomeSecret", LogLevelWithProgramOptionLog(
+                                       boost::to_upper_copy<std::string>(log)));
   endpoint_type ep{address_type::from_string(ip), port};
-  // TODO: HMAC and logging level in the endpoint_impl's
-  // For now, we just dump logs to std::out
-  // and HMAC isn't checked
-  SemanticHTTPServer server(ep, threads, root);
-  mainLoop();
+  SemanticHTTPServer server(ep, threads, root, ctx);
+  RunMainLoop();
   return 0;
 }
