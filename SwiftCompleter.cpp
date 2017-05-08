@@ -114,7 +114,6 @@ struct CompletionContext {
 };
 
 class SourceKitService {
-  void NotificationReceiver(sourcekitd_response_t resp);
   Logger _logger;
 
 public:
@@ -133,9 +132,15 @@ static char *PrintResponse(sourcekitd_response_t resp) {
 }
 
 // A Future channel for Semantic notifications.
+// This channel is shared across all SourceKitService instances
+// and SwiftCompleter instances
 static FutureChannel SemaFutureChannel;
 
-void ssvim::SourceKitService::NotificationReceiver(sourcekitd_response_t resp) {
+// There is a single notification receiver per sourcekitd session
+// and currently, there is a single session per server
+// @see SourceKitService::SourceKitService()
+static void NotificationReceiver(ssvim::Logger logger,
+                                 sourcekitd_response_t resp) {
   sourcekitd_response_description_dump(resp);
   sourcekitd_variant_t payload = sourcekitd_response_get_value(resp);
 
@@ -144,7 +149,7 @@ void ssvim::SourceKitService::NotificationReceiver(sourcekitd_response_t resp) {
   // request. This needs to happen after various requests ( mainly only used
   // for editor.replacetext now.
   auto semaName = sourcekitd_variant_dictionary_get_string(payload, KeyName);
-  _logger << "DID_GET_SEMA: " << semaName;
+  logger << "DID_GET_SEMA: " << semaName;
   sourcekitd_object_t edReq =
       sourcekitd_request_dictionary_create(nullptr, nullptr, 0);
   sourcekitd_request_dictionary_set_uid(
@@ -154,11 +159,10 @@ void ssvim::SourceKitService::NotificationReceiver(sourcekitd_response_t resp) {
   sourcekitd_request_dictionary_set_string(edReq, KeySourceText, "");
 
   // Send the request in the notification
-  // FIXME: Move off of the main thread!
   auto semaResponse = sourcekitd_send_request_sync(edReq);
   sourcekitd_response_description_dump(semaResponse);
   sourcekitd_request_release(edReq);
-  _logger << "SEMA_DONE";
+  logger << "SEMA_DONE";
   SemaFutureChannel.set(semaName, PrintResponse(semaResponse));
 }
 
@@ -311,7 +315,7 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
 
 SourceKitService::SourceKitService(ssvim::LogLevel logLevel)
     : _logger(logLevel, "SKT") {
-  // Initialize SourceKitD
+  // Initialize SourceKitD resource
   //
   // Here, we are set the notification to register for callbacks around editor
   // updates. This callback is invoked on the main thread.
@@ -320,13 +324,16 @@ SourceKitService::SourceKitService(ssvim::LogLevel logLevel)
   // given program. It is lazily started, and never torn down. It manages
   // caching internally per session. There is an issue in SourceKitD that
   // causes us to never tear it down.
-  //
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
+    ssvim::Logger sharedNotificationLogger(logLevel, "SKT");
     sourcekitd_initialize();
+    // WARNING ( called on dispatch_main_queue ) by sourcekitd
     sourcekitd_set_notification_handler(^(sourcekitd_response_t resp) {
-      // WARNING ( called on dispatch_main_queue )
-      NotificationReceiver(resp);
+      dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0),
+                     ^{
+                       NotificationReceiver(sharedNotificationLogger, resp);
+                     });
     });
   });
 }
@@ -472,9 +479,9 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   sktService.EditorReplaceText(ctx, &response);
 
   // We need to wait until:
-  // - the document is updated
+  // - the document is updated ( NotificationReceiver fires )
   // - send a request for semantic info
-  // - request come back for semantic info
+  // - the semantic request completes
   auto future = SemaFutureChannel.future(filename);
   auto semaresult = future.get();
   return semaresult;
