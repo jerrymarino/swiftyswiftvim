@@ -2,5 +2,4 @@
 *.o
 *.pyc
 build
-vendor/
-
+*.DS_Store

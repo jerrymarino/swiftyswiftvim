@@ -16,11 +16,6 @@ if [[ ! -d $EXPECTED_BOOST ]]; then
     brew install boost@1.64
 fi
 
-if [[ ! -d vendor/ ]]; then
-    echo "Init repository"
-    ./repoinit.sh
-fi
-
 echo "Deps satisfied.."
 
 echo "Configure.."
@@ -29,6 +24,5 @@ echo "Configure.."
 echo "Build.."
 make -C build
 
-echo "Installing.."
-ditto build/http_server /usr/local/bin/swiftyswiftvim
+echo "Bootstrap SwiftySwiftVim is a go!"
 
