@@ -12,7 +12,7 @@
 
 #include "Logging.hpp"
 #include "SwiftCompleter.hpp"
-#include "sourcekitd/sourcekitd.h"
+#include <sourcekitd/sourcekitd.h>
 
 // This is kind of ghetto. Most of this was written as C functions
 // so there isn't a good way to inject this throughout all of the

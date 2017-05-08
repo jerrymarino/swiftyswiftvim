@@ -35,6 +35,12 @@ include_directories(vendor/Beast/include/)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads)
 
+# Include vendored deps
+
+include_directories(vendor)
+
+# Sourcekit
+
 # OSX First
 # Use Xcode'd sourcekitd build.
 execute_process (
@@ -50,7 +56,7 @@ set(SKT_FLAGS " ${SKT_FLAGS} -rpath ${XCODE_PATH}/Toolchains/XcodeDefault.xctool
 
 set(GLOBAL_CXX_FLAGS "-std=c++1y -stdlib=libc++")
 set(GLOBAL_CXX_FLAGS "${GLOBAL_CXX_FLAGS} -Wall -Wextra -Wpedantic  -Wno-unused-parameter")
-set(GLOBAL_CXX_FLAGS "${GLOBAL_CXX_FLAGS} -isystem /usr/local/Frameworks")
+set(GLOBAL_CXX_FLAGS "${GLOBAL_CXX_FLAGS} -Wno-unused-command-line-argument")
 
 add_definitions(${GLOBAL_CXX_FLAGS})
 set(CMAKE_CXX_FLAGS ${SKT_FLAGS})
