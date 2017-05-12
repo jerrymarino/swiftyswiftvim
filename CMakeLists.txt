@@ -111,6 +111,10 @@ add_executable(test_driver
     Driver.cpp
 )
 
+add_executable(integration_tests
+    APIIntegrationTests.cpp
+)
+
 target_link_libraries(http_server ${Boost_LIBRARIES} Threads::Threads)
 
 INSTALL( TARGETS http_server
