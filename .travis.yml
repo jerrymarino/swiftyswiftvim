@@ -1,0 +1,9 @@
+language: generic
+os:
+  - osx
+sudo: false
+osx_image: xcode8.3
+install:
+  - source bootstrap
+script: ./build/integration_tests
+

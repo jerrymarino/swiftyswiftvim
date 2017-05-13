@@ -6,6 +6,8 @@ tailored to the needs of editing source code.
 The project was founded to fulfil the need of semantic Swift support in text editors and
 integrate Swift into [YouCompleteMe](https://github.com/Valloric/YouCompleteMe/).
 
+![Travis](https://travis-ci.org/jerrymarino/swiftyswiftvim.svg?branch=master)
+
 ## YouCompleteMe Usage
 
 ![SwiftySwiftVimYCMPreview](https://cloud.githubusercontent.com/assets/1245820/25786944/71ddaf52-3351-11e7-96d6-a32a714e35f6.gif)
