@@ -2,22 +2,6 @@
 set -e
 cd `dirname $0`
 
-# System Dependencies
-if [[ ! -d /Applications/Xcode.app/ ]]; then
-    >&2 echo "Needs OSX and Xcode for SourceKitD"
-    exit 1
-fi
-
-# Use boost is installed via brew for now
-EXPECTED_BOOST=/usr/local/Cellar/boost/1.64.0_1 
-if [[ ! -d $EXPECTED_BOOST ]]; then
-    echo "Missing Boost $EXPECTED_BOOST. \
-        trying $ brew install boost 1.64"
-    brew install boost@1.64
-fi
-
-echo "Deps satisfied.."
-
 echo "Configure.."
 ./configure
 
