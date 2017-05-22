@@ -45,10 +45,27 @@ Then, assert it's set to the correct value when a `swift` file is open.
     :set ft?
 ```
 
+### Compilation Database
+
+By default, it provides a basic level of completion support: completions within
+a single file.
+
+In most cases, build options and dependencies need to be specified to have a
+good experience.
+
+SwiftySwiftVim uses a [Compilation
+Database](http://clang.llvm.org/docs/JSONCompilationDatabase.html) to import
+compiler settings. Setup the build system to generate one at the workspace
+root.
+
+For Xcode *Project* users, [XcodeCompilationDatabase
+](https://github.com/jerrymarino/XcodeCompilationDatabase) makes this easy.
+
+
 ## Supported Features
 
 - Code Completion
-- Semantic Diagnostics
+- Semantic Diagnostics ( at the server level )
 
 ## Technical Design
 
@@ -120,13 +137,10 @@ This project is still in early phases, and development happens sporadically.
 
 ### Ideas for starter projects
 
-- Write documentation that explains how to use this
 - Improve build system and dependency integration
 - Design an end to end integration testing system
-- Integrate GoogleTest for CPP units
 - Get `GoToDefinition` working end to end
 - Implement a semantic search engine
-- Add the ability to bootstrap a project from an Xcode project
 
 ### Ideas for YCM starter projects
 
