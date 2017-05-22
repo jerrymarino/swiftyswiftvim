@@ -284,21 +284,17 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
       // Enumerate from the column to an interesting point
       for (int i = column; i >= 0; i--) {
         char someChar = '\0';
-
         if (someLine.length() > i) {
           someChar = someLine.at(i);
         }
 
         if (someChar == ' ' || someChar == '.' || i == 0) {
-          unsigned forwardIdx = i + 1;
           // Include the character in the partial file
           std::string partialLine = "";
           if (i == 0) {
             partialLine = someLine;
-          } else if (someLine.length() > forwardIdx) {
-            partialLine = someLine.substr(0, forwardIdx);
           } else if (someLine.length() > i) {
-            partialLine = someLine.substr(0, i);
+            partialLine = someLine.substr(0, i + 1);
           }
           CleanFile->append(partialLine);
           *offset = CleanFile->length();
