@@ -4,20 +4,14 @@ cmake_minimum_required(VERSION 2.8)
 
 # Boost
 
-# Optionally the user may provide a custom boost.
-# For now, we default to homebrew provided boosts.
-# FIXME: This isn't really an ideal default, but it is
-# what it has.
-if(NOT DEFINED ENV{OVERRIDE_BOOST})
-    message("Attempting to use brew boost")
-    # if this command fails, the build will explode in a future step
-    execute_process (
-        COMMAND bash -c "${CMAKE_CURRENT_SOURCE_DIR}/install_brew_boost_if_needed.sh"
-        OUTPUT_VARIABLE XCODE_PATH
-    )
-    set(BOOST_INCLUDEDIR /usr/local/include/boost)
-    set(BOOST_ROOT /usr/local/lib)
-endif()
+# Build local checkout of boost
+message("Building boost")
+execute_process (
+    COMMAND bash -c "${CMAKE_CURRENT_SOURCE_DIR}/build_boost.sh"
+    OUTPUT_VARIABLE BOOST_BUILD_OUTPUT
+)
+set(BOOST_INCLUDEDIR "${CMAKE_CURRENT_SOURCE_DIR}/build/vendor/boost/include/boost")
+set(BOOST_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/build/vendor/boost/")
 
 ## Boost includes
 

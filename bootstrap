@@ -2,10 +2,10 @@
 set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-echo "Configure.."
+echo "Configure SwiftySwiftVim.."
 $DIR/configure
 
-echo "Build.."
+echo "Build SwiftySwiftVim.."
 make -C build
 
 echo "Bootstrap SwiftySwiftVim is a go!"
