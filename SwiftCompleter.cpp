@@ -261,8 +261,8 @@ using namespace ssvim;
 // it can be improved.
 static void GetOffset(CompletionContext &ctx, unsigned *offset,
                       std::string *CleanFile) {
-  unsigned line = ctx.line;
-  unsigned column = ctx.column;
+  auto line = ctx.line;
+  auto column = ctx.column;
   auto fileName = ctx.sourceFilename;
 
   std::string unsavedInput;
@@ -282,7 +282,7 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
   while (std::getline(sourceFile, someLine)) {
     if (currentLine + 1 == line) {
       // Enumerate from the column to an interesting point
-      for (int i = column; i >= 0; i--) {
+      for (auto i = column;; i--) {
         char someChar = '\0';
         if (someLine.length() > i) {
           someChar = someLine.at(i);

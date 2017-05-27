@@ -82,7 +82,7 @@ else()
 endif()
 
 set(GLOBAL_CXX_FLAGS "-std=c++1z -stdlib=libc++")
-set(GLOBAL_CXX_FLAGS "${GLOBAL_CXX_FLAGS} -Wall -Wextra -Wpedantic  -Wno-unused-parameter")
+set(GLOBAL_CXX_FLAGS "${GLOBAL_CXX_FLAGS} -Werror -Wall -Wextra -Wpedantic  -Wno-unused-parameter")
 set(GLOBAL_CXX_FLAGS "${GLOBAL_CXX_FLAGS} -Wno-import-preprocessor-directive-pedantic -Wno-unused-command-line-argument")
 
 add_definitions(${GLOBAL_CXX_FLAGS})
