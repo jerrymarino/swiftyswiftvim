@@ -23,8 +23,11 @@ template <typename Success, typename Error>
 using Result = boost::variant<Success, Error>;
 
 namespace ResultStatus {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
 const int Ok = 0;
 const int Error = 1;
+#pragma clang diagnostic pop
 
 template <typename T, typename R> auto Get(R v) {
   return boost::get<T>(v);
