@@ -440,6 +440,18 @@ SwiftCompleter::SwiftCompleter(LogLevel logLevel)
 SwiftCompleter::~SwiftCompleter() {
 }
 
+// Transform completion flags into diagnostic flags
+auto DiagnosticFlagsFromFlags(std::string filename, std::vector<std::string> flags) {
+  std::vector<std::string> outputFlags;
+  for (auto &f : flags) {
+    if (f == filename) {
+      continue;
+    }
+    outputFlags.push_back(f);
+  }
+  return outputFlags;
+}
+
 const std::string SwiftCompleter::CandidatesForLocationInFile(
     const std::string &filename, int line, int column,
     const std::vector<UnsavedFile> &unsavedFiles,
@@ -465,7 +477,7 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   CompletionContext ctx;
   ctx.sourceFilename = filename;
   ctx.unsavedFiles = unsavedFiles;
-  ctx.flags = flags;
+  ctx.flags = DiagnosticFlagsFromFlags(filename, flags);
   ctx.line = 0;
   ctx.column = 0;
 
