@@ -5,6 +5,7 @@
 #import <future>
 #import <iostream>
 #import <map>
+#import <set>
 #import <sourcekitd/sourcekitd.h>
 #import <sstream>
 #import <string>
@@ -440,18 +441,6 @@ SwiftCompleter::SwiftCompleter(LogLevel logLevel)
 SwiftCompleter::~SwiftCompleter() {
 }
 
-// Transform completion flags into diagnostic flags
-auto DiagnosticFlagsFromFlags(std::string filename, std::vector<std::string> flags) {
-  std::vector<std::string> outputFlags;
-  for (auto &f : flags) {
-    if (f == filename) {
-      continue;
-    }
-    outputFlags.push_back(f);
-  }
-  return outputFlags;
-}
-
 const std::string SwiftCompleter::CandidatesForLocationInFile(
     const std::string &filename, int line, int column,
     const std::vector<UnsavedFile> &unsavedFiles,
@@ -461,13 +450,28 @@ const std::string SwiftCompleter::CandidatesForLocationInFile(
   ctx.line = line;
   ctx.column = column;
   ctx.unsavedFiles = unsavedFiles;
-  ctx.flags = flags;
+  ctx.flags = FlagsForCompileCommand(flags);
 
   SourceKitService sktService(_logger.level());
   char *response = NULL;
   sktService.CompletionOpen(ctx, &response);
   sktService.CompletionUpdate(ctx, &response);
   return response;
+}
+
+// Transform completion flags into diagnostic flags
+auto DiagnosticFlagsFromFlags(std::string filename,
+                              std::vector<std::string> flags) {
+  std::vector<std::string> outputFlags;
+  // Skip the file - I'm not 100% sure why we need this but it will output
+  // weird warnings if not.
+  for (auto &f : flags) {
+    if (f == filename) {
+      continue;
+    }
+    outputFlags.push_back(f);
+  }
+  return outputFlags;
 }
 
 const std::string
@@ -477,7 +481,8 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   CompletionContext ctx;
   ctx.sourceFilename = filename;
   ctx.unsavedFiles = unsavedFiles;
-  ctx.flags = DiagnosticFlagsFromFlags(filename, flags);
+  auto completionFlags = FlagsForCompileCommand(flags);
+  ctx.flags = DiagnosticFlagsFromFlags(filename, completionFlags);
   ctx.line = 0;
   ctx.column = 0;
 
@@ -495,3 +500,75 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   return semaresult;
 }
 } // namespace ssvim
+// namespace ssvim
+
+#pragma mark - Command Preparation Logic
+
+// Basic flag blacklist is a list of flags that cannot be included in a
+// CompilerInvocation for completion.
+//
+// These flags are a pair in the form
+// __FLAG__ Optional(__VALUE__)
+//
+// For example -c sometimes has a value after it.
+//
+// Only skip __VALUE__ when it doesn't start with -.
+
+auto FlagStartToken = '-';
+std::set<std::string> BasicFlagBlacklist{"-c",
+                                         "-MP",
+                                         "-MD",
+                                         "-MMD",
+                                         "--fcolor-diagnostics",
+                                         "-emit-reference-dependencies-path",
+                                         "-emit-dependencies-path",
+                                         "-emit-module-path",
+                                         "-serialize-diagnostics-path",
+                                         "-emit-module-doc-path",
+                                         "-frontend",
+                                         "-o"};
+
+// These flags may specified as pair of the form
+// __FLAG__ __VALUE__
+//
+// Unconditionally exclude flags in this blacklist and the next value
+
+std::set<std::string> PairedFlagBlacklist{"-Xcc"};
+
+// Take a raw split command and output completion flags
+std::vector<std::string>
+ssvim::FlagsForCompileCommand(std::vector<std::string> flags) {
+  if (flags.size() == 0) {
+    return flags;
+  }
+
+  std::vector<std::string> outFlags;
+
+  // Skip the first flag if needed
+  // Assume that someone will be using a swift compiler with an absolute path
+  // and strip it off if so. All compile commands should be formed this way,
+  // but some old test code uses it, so leave it for now.
+  auto isCompilerBinary = flags.at(0)[0] == '/';
+  unsigned long i = isCompilerBinary ? 1 : 0;
+  auto length = flags.size();
+  while (i < length) {
+    auto flag = flags.at(i);
+    if (PairedFlagBlacklist.find(flag) != PairedFlagBlacklist.end()) {
+      i = i + 1;
+    } else if (BasicFlagBlacklist.find(flag) != BasicFlagBlacklist.end()) {
+      auto nextIdx = i + 1;
+
+      // Skip the pair (FLAG, VALUE) when the next value isn't
+      // another flag.
+      if (nextIdx < length) {
+        if (flags[nextIdx][0] != FlagStartToken) {
+          i = i + 1;
+        }
+      }
+    } else {
+      outFlags.push_back(flag);
+    }
+    i = i + 1;
+  }
+  return outFlags;
+}

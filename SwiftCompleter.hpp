@@ -39,4 +39,10 @@ public:
                      const std::vector<UnsavedFile> &unsavedFiles,
                      const std::vector<std::string> &flags);
 };
+
+#pragma mark - Testing
+
+extern std::vector<std::string>
+FlagsForCompileCommand(std::vector<std::string> flags);
+
 } // namespace ssvim
