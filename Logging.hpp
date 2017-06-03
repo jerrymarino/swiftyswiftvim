@@ -42,12 +42,20 @@ private:
   template <class Arg, class... Args>
   Logger &logArgs(LogLevel level, Arg const &arg, Args const &... args) {
     if (level == LogLevelError) {
+      writeLock();
       std::cerr << _messagePrefix << arg << std::endl;
+      writeUnLock();
     } else {
+      writeLock();
       std::cout << _messagePrefix << arg << std::endl;
+      writeUnLock();
     }
     logArgs(level, args...);
     return *this;
   }
+
+  void writeLock();
+
+  void writeUnLock();
 };
 } // namespace ssvim

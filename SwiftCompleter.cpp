@@ -143,12 +143,22 @@ static void NotificationReceiver(ssvim::Logger logger,
                                  sourcekitd_response_t resp) {
   sourcekitd_response_description_dump(resp);
   sourcekitd_variant_t payload = sourcekitd_response_get_value(resp);
+  logger << "SEMA_RESP: " << PrintResponse(resp);
+  if (sourcekitd_variant_get_type(payload) == SOURCEKITD_VARIANT_TYPE_NULL) {
+    logger << "GARBAGE_SEMA_RESP";
+    return;
+  }
 
   // In order to get the semantic info, we have to wait for the editor to be
   // ready. It will notify us on the main thread and we can make another
   // request. This needs to happen after various requests ( mainly only used
   // for editor.replacetext now.
   auto semaName = sourcekitd_variant_dictionary_get_string(payload, KeyName);
+  if (semaName == NULL || std::string(semaName).length() == 0) {
+    logger << "DID_GET_SEMA:''";
+    return;
+  }
+
   logger << "DID_GET_SEMA: " << semaName;
   sourcekitd_object_t edReq =
       sourcekitd_request_dictionary_create(nullptr, nullptr, 0);
@@ -441,7 +451,8 @@ SwiftCompleter::~SwiftCompleter() {
 }
 
 // Transform completion flags into diagnostic flags
-auto DiagnosticFlagsFromFlags(std::string filename, std::vector<std::string> flags) {
+auto DiagnosticFlagsFromFlags(std::string filename,
+                              std::vector<std::string> flags) {
   std::vector<std::string> outputFlags;
   for (auto &f : flags) {
     if (f == filename) {
@@ -467,6 +478,12 @@ const std::string SwiftCompleter::CandidatesForLocationInFile(
   char *response = NULL;
   sktService.CompletionOpen(ctx, &response);
   sktService.CompletionUpdate(ctx, &response);
+  if (response == NULL) {
+    // FIXME: Propagate SourceKitService Errors
+    static auto EmptyResponse = "{ 'key.results':[] }";
+    _logger << "Empty response";
+    return EmptyResponse;
+  }
   return response;
 }
 
@@ -485,11 +502,20 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   char *response = NULL;
   sktService.EditorOpen(ctx, &response);
   sktService.EditorReplaceText(ctx, &response);
+  if (response == NULL) {
+    // FIXME: Propagate SourceKitService Errors
+    static auto EmptyResponse = "{ 'key.diagnostics':[] }";
+    _logger << "Empty response";
+    return EmptyResponse;
+  }
 
   // We need to wait until:
   // - the document is updated ( NotificationReceiver fires )
   // - send a request for semantic info
   // - the semantic request completes
+  // FIXME: Add a resonable timeout. If SourceKit goes down async we won't ever
+  // get the message back ( somewhat workable for now because clients will
+  // timeout )
   auto future = SemaFutureChannel.future(filename);
   auto semaresult = future.get();
   return semaresult;
