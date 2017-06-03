@@ -91,6 +91,7 @@ set(CMAKE_CXX_FLAGS ${SKT_FLAGS})
 add_executable(http_server
     file_body.hpp
     Logging.hpp
+    Logging.cpp
     SemanticHTTPServer.hpp
     SemanticHTTPServer.cpp
     SwiftCompleter.hpp
@@ -100,6 +101,7 @@ add_executable(http_server
 
 add_executable(test_driver
     Logging.hpp
+    Logging.cpp
     SwiftCompleter.hpp
     SwiftCompleter.cpp
     Driver.cpp
@@ -107,6 +109,7 @@ add_executable(test_driver
 
 add_executable(integration_tests
     APIIntegrationTests.cpp
+    Logging.cpp
 )
 
 target_link_libraries(http_server ${Boost_LIBRARIES} Threads::Threads)
