@@ -4,46 +4,19 @@ Swifty Swift Vim is a semantic backend for the Swift programming language
 tailored to the needs of editing source code.
 
 The project was founded to fulfil the need of semantic Swift support in text editors and
-integrate Swift into [YouCompleteMe](https://github.com/Valloric/YouCompleteMe/).
+integrate Swift into text editors.
 
 ![Travis](https://travis-ci.org/jerrymarino/swiftyswiftvim.svg?branch=master)
 
-## YouCompleteMe Usage
+## iCompleteMe Vim Usage
 
-![SwiftySwiftVimYCMPreview](https://cloud.githubusercontent.com/assets/1245820/25786944/71ddaf52-3351-11e7-96d6-a32a714e35f6.gif)
+[iCompleteMe](https://github.com/jerrymarino/icompleteme) implements the Vim
+level UI code and client library.
 
-Install the [RFC branch of YCMD with Swift Support](https://github.com/Valloric/ycmd/pull/487)
-into your YouCompleteMe installation.
+![SwiftySwiftVimYCMPreview](https://cloud.githubusercontent.com/assets/1245820/26759463/4084bde8-48b3-11e7-869b-33ec00d70eef.gif)
 
-For example, this means going into wherever you cloned YouCompleteMe and then:
-
-```
-  mv third_party/ycmd third_party/ycmd-master
-  git clone  https://github.com/jerrymarino/ycmd.git
-
-  # Checkout the RFC branch 
-  git checkout remotes/origin/jmarino_swift_prototype_squashed
-  git submodule update --init --recursive
-
-  # Build with Swift support
-  # ( Also, clang completer and potentially --debug-symbols )
-  ./build.py  --completers --swift-completer --clang-completer
-```
-
-By default Vim does not support the `swift` filetype.
-
-Cat this into your `.vimrc`
-
-```
-    " Force swift filetype
-    autocmd BufNewFile,BufRead *.swift set filetype=swift
-```
-
-Then, assert it's set to the correct value when a `swift` file is open.
-
-```
-    :set ft?
-```
+Head on over to [iCompleteMe](https://github.com/jerrymarino/icompleteme) to
+get up and running.
 
 ### Compilation Database
 
@@ -76,7 +49,6 @@ It includes the following components
 
 - A semantic engine for Swift.
 - An HTTP server.
-- **Thin** [YouCompleteMe integration](https://github.com/Valloric/ycmd/pull/487)
 
 ### Semantic Engine
 
@@ -137,15 +109,10 @@ This project is still in early phases, and development happens sporadically.
 
 ### Ideas for starter projects
 
-- Improve build system and dependency integration
+- Improve readme and setup guide in iCompleteMe or iCMD
 - Design an end to end integration testing system
 - Get `GoToDefinition` working end to end
 - Implement a semantic search engine
-
-### Ideas for YCM starter projects
-
-- Integrate Diagnostic support with YouCompleteMe
-- Add support for Swift `.ycm_extra_conf`s in YCMD.
 
 ## Acknowledgements 
 
@@ -156,5 +123,5 @@ running.
 Thank you Apple for opening up the [Swift](https://github.com/apple/swift/) compiler and 
 IDE facilities. This project would not be possible without this.
 
-Thanks to @Valloric and the YCMD/YouCompleteMe project.
+Thanks to [@Valloric](https://github.com/Valloric/) and the [YCMD/YouCompleteMe](https://github.com/Valloric/YouCompleteMe/) team!
 
