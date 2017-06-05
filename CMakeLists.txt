@@ -98,11 +98,11 @@ add_executable(http_server
     HTTPServerMain.cpp
 )
 
-add_executable(test_driver
+add_executable(tests
     Logging.hpp
     SwiftCompleter.hpp
     SwiftCompleter.cpp
-    Driver.cpp
+    UnitTests.cpp
 )
 
 add_executable(integration_tests

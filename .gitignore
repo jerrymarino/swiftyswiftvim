@@ -4,4 +4,4 @@
 build
 *.DS_Store
 !vendor/.gitignore
-
+compile_commands.json
