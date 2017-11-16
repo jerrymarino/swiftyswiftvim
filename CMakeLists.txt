@@ -10,7 +10,7 @@ execute_process (
     COMMAND bash -c "${CMAKE_CURRENT_SOURCE_DIR}/build_boost.sh"
     OUTPUT_VARIABLE BOOST_BUILD_OUTPUT
 )
-set(BOOST_INCLUDEDIR "${CMAKE_CURRENT_SOURCE_DIR}/build/vendor/boost/include/boost")
+set(BOOST_INCLUDEDIR "${CMAKE_CURRENT_SOURCE_DIR}/build/vendor/boost/include/")
 set(BOOST_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/build/vendor/boost/")
 
 ## Boost includes
