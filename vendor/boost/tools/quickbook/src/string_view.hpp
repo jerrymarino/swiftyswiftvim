@@ -11,20 +11,26 @@
 
 #include <boost/utility/string_view.hpp>
 
-namespace quickbook {
+namespace quickbook
+{
     // boost::string_view now can't be constructed from an rvalue std::string,
     // which is something that quickbook does in several places, so this wraps
     // it to allow that.
 
-    struct string_view : boost::string_view {
+    struct string_view : boost::string_view
+    {
         typedef boost::string_view base;
 
         string_view() : base() {}
         string_view(string_view const& x) : base(x) {}
         string_view(std::string const& x) : base(x) {}
         string_view(const char* x) : base(x) {}
-        string_view(const char* x, typename base::size_type len) : base(x, len) {}
+        string_view(const char* x, base::size_type len) : base(x, len) {}
+
+        std::string to_s() const { return std::string(begin(), end()); }
     };
+
+    typedef quickbook::string_view::const_iterator string_iterator;
 }
 
 #endif

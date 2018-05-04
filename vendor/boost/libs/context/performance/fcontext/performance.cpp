@@ -13,7 +13,6 @@
 #include <boost/cstdint.hpp>
 #include <boost/program_options.hpp>
 
-#include "../bind_processor.hpp"
 #include "../clock.hpp"
 #include "../cycle.hpp"
 
@@ -56,7 +55,7 @@ typedef simple_stack_allocator<
             8 * 1024 * 1024, 64 * 1024, 8 * 1024
         >                                       stack_allocator;
 
-boost::uint64_t jobs = 1000;
+boost::uint64_t jobs = 1000000;
 
 static void foo( boost::context::detail::transfer_t t_) {
     boost::context::detail::transfer_t t = t_;
@@ -115,8 +114,6 @@ int main( int argc, char * argv[])
 {
     try
     {
-        bind_to_processor( 0);
-
         boost::program_options::options_description desc("allowed options");
         desc.add_options()
             ("help", "help message")

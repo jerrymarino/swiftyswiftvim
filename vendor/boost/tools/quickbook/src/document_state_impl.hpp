@@ -9,14 +9,14 @@
 #if !defined(BOOST_QUICKBOOK_DOCUMENT_STATE_IMPL_HPP)
 #define BOOST_QUICKBOOK_DOCUMENT_STATE_IMPL_HPP
 
-#include "document_state.hpp"
-#include "phrase_tags.hpp"
-#include "utils.hpp"
-#include "string_view.hpp"
-#include <boost/shared_ptr.hpp>
 #include <deque>
 #include <string>
 #include <vector>
+#include <boost/shared_ptr.hpp>
+#include "document_state.hpp"
+#include "phrase_tags.hpp"
+#include "string_view.hpp"
+#include "utils.hpp"
 
 namespace quickbook
 {
@@ -30,24 +30,27 @@ namespace quickbook
 
     struct id_placeholder
     {
-        unsigned index;         // The index in document_state_impl::placeholders.
-                                // Use for the dollar identifiers in
-                                // intermediate xml.
+        std::size_t index; // The index in document_state_impl::placeholders.
+                           // Use for the dollar identifiers in
+                           // intermediate xml.
+        std::string id;    // The node id.
         std::string unresolved_id;
-                                // The id that would be generated
-                                // without any duplicate handling.
-                                // Used for generating old style header anchors.
-        std::string id;         // The node id.
+        // The id that would be generated
+        // without any duplicate handling.
+        // Used for generating old style header anchors.
         id_placeholder const* parent;
-                                // Placeholder of the parent id.
+        // Placeholder of the parent id.
         id_category category;
-        unsigned num_dots;      // Number of dots in the id.
-                                // Normally equal to the section level
-                                // but not when an explicit id contains
-                                // dots.
+        std::ptrdiff_t num_dots; // Number of dots in the id.
+                                 // Normally equal to the section level
+                                 // but not when an explicit id contains
+                                 // dots.
 
-        id_placeholder(unsigned index, quickbook::string_view id,
-                id_category category, id_placeholder const* parent_);
+        id_placeholder(
+            std::size_t index,
+            quickbook::string_view id,
+            id_category category,
+            id_placeholder const* parent_);
 
         std::string to_string() const;
     };
@@ -69,51 +72,56 @@ namespace quickbook
 
         // Placeholder methods
 
-        id_placeholder const* add_placeholder(quickbook::string_view, id_category,
+        id_placeholder const* add_placeholder(
+            quickbook::string_view,
+            id_category,
             id_placeholder const* parent = 0);
 
         id_placeholder const* get_placeholder(quickbook::string_view) const;
 
         id_placeholder const* get_id_placeholder(
-                boost::shared_ptr<section_info> const& section) const;
+            boost::shared_ptr<section_info> const& section) const;
 
         // Events
 
         id_placeholder const* start_file(
-                unsigned compatibility_version,
-                bool document_root,
-                quickbook::string_view include_doc_id,
-                quickbook::string_view id,
-                value const& title);
+            unsigned compatibility_version,
+            bool document_root,
+            quickbook::string_view include_doc_id,
+            quickbook::string_view id,
+            value const& title);
 
         void end_file();
 
         id_placeholder const* add_id(
-                quickbook::string_view id,
-                id_category category);
+            quickbook::string_view id, id_category category);
         id_placeholder const* old_style_id(
-            quickbook::string_view id,
-            id_category category);
+            quickbook::string_view id, id_category category);
         id_placeholder const* begin_section(
-                quickbook::string_view id,
-                id_category category,
-                source_mode_info const&);
+            value const& explicit_id,
+            quickbook::string_view id,
+            id_category category,
+            source_mode_info const&);
         void end_section();
 
-    private:
+      private:
         id_placeholder const* add_id_to_section(
-                quickbook::string_view id,
-                id_category category,
-                boost::shared_ptr<section_info> const& section);
+            quickbook::string_view id,
+            id_category category,
+            boost::shared_ptr<section_info> const& section);
         id_placeholder const* create_new_section(
-                quickbook::string_view id,
-                id_category category,
-                source_mode_info const&);
+            value const& explicit_id,
+            quickbook::string_view id,
+            id_category category,
+            source_mode_info const&);
     };
 
-    std::string replace_ids(document_state_impl const& state, quickbook::string_view xml,
-            std::vector<std::string> const* = 0);
-    std::vector<std::string> generate_ids(document_state_impl const&, quickbook::string_view);
+    std::string replace_ids(
+        document_state_impl const& state,
+        quickbook::string_view xml,
+        std::vector<std::string> const* = 0);
+    std::vector<std::string> generate_ids(
+        document_state_impl const&, quickbook::string_view);
 
     std::string normalize_id(quickbook::string_view src_id);
     std::string normalize_id(quickbook::string_view src_id, std::size_t);
@@ -133,7 +141,8 @@ namespace quickbook
 
         std::vector<std::string> id_attributes;
 
-        struct callback {
+        struct callback
+        {
             virtual void start(quickbook::string_view) {}
             virtual void id_value(quickbook::string_view) {}
             virtual void finish(quickbook::string_view) {}

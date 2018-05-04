@@ -8,23 +8,28 @@
 
 set -e
 
+which bcp || (echo "Missing boost-bcp" && exit 1)
+
 rm -rf vendor/boost
+ditto vendor/boost/.gitignore boost_gitignore
 mkdir -p vendor/boost
+mv boost_gitignore vendor/boost/.gitignore
 
 SSVIM_ROOT=$PWD
 
 FETCH_ROOT=`mktemp -d`
 cd $FETCH_ROOT
-
-curl -LOk https://sourceforge.net/projects/boost/files/boost/1.64.0/boost_1_64_0.zip/download
+echo "Downloading boost to $FETCH_ROOT"
+curl -LOk https://sourceforge.net/projects/boost/files/boost/1.67.0/boost_1_67_0.zip/download
 
 unzip download > /dev/null
 
 BOOST_TARGET_ROOT=$SSVIM_ROOT/vendor/boost
 
 # Copy out packages.
-# This unzips to boost_1_64_0
-BOOST_ARCHIVE=$PWD/boost_1_64_0
+# This unzips to boost_1_67_0
+BOOST_ARCHIVE=$PWD/boost_1_67_0
+
 bcp coroutine \
     context \
     config \
