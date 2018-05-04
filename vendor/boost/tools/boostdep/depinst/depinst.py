@@ -12,6 +12,7 @@
 import re
 import sys
 import os
+import argparse
 
 def is_module( m, gm ):
 
@@ -92,15 +93,12 @@ def scan_directory( d, x, gm, deps ):
 
                 scan_header_dependencies( f, x, gm, deps )
 
-def scan_module_dependencies( m, x, gm, deps, test ):
+def scan_module_dependencies( m, x, gm, deps, dirs ):
 
     vprint( 'Scanning module', m )
 
-    scan_directory( os.path.join( 'libs', m, 'include' ), x, gm, deps )
-    scan_directory( os.path.join( 'libs', m, 'src' ), x, gm, deps )
-
-    if test:
-        scan_directory( os.path.join( 'libs', m, 'test' ), x, gm, deps )
+    for dir in dirs:
+        scan_directory( os.path.join( 'libs', m, dir ), x, gm, deps )
 
 def read_exceptions():
 
@@ -162,27 +160,33 @@ def install_modules( deps, x, gm ):
 
             deps[ m ] = 1 # mark as installed
 
-            scan_module_dependencies( m, x, gm, deps, False )
+            scan_module_dependencies( m, x, gm, deps, [ 'include', 'src' ] )
 
     return r
 
 if( __name__ == "__main__" ):
 
-    argv = sys.argv[ 1: ]
+    parser = argparse.ArgumentParser( description='Installs the dependencies needed to test a Boost library.' )
 
-    if argv[0] == '-v':
+    parser.add_argument( '-v', '--verbose', help='enable verbose output', action='store_true' )
+    parser.add_argument( '-I', '--include', help="additional subdirectory to scan; defaults are 'include', 'src', 'test'; can be repeated", metavar='DIR', action='append' )
+    parser.add_argument( 'library', help="name of library to scan ('libs/' will be prepended)" )
+
+    args = parser.parse_args()
+
+    if args.verbose:
 
         def vprint( *args ):
             for arg in args:
                 print arg,
             print
 
-        argv = argv[ 1: ]
-
     else:
 
         def vprint( *args ):
             pass
+
+    # vprint( '-I:', args.include )
 
     x = read_exceptions()
     # vprint( 'Exceptions:', x )
@@ -190,11 +194,19 @@ if( __name__ == "__main__" ):
     gm = read_gitmodules()
     # vprint( '.gitmodules:', gm )
 
-    m = argv[0]
+    m = args.library
 
     deps = { m : 1 }
 
-    scan_module_dependencies( m, x, gm, deps, True )
+    dirs = [ 'include', 'src', 'test' ]
+
+    if args.include:
+        for dir in args.include:
+          dirs.append( dir )
+
+    # vprint( 'Directories:', dirs )
+
+    scan_module_dependencies( m, x, gm, deps, dirs )
 
     # vprint( 'Dependencies:', deps )
 

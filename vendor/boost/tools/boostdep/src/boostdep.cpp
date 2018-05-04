@@ -1,7 +1,7 @@
 
 // boostdep - a tool to generate Boost dependency reports
 //
-// Copyright 2014, 2015, 2016 Peter Dimov
+// Copyright 2014-2017 Peter Dimov
 //
 // Distributed under the Boost Software License, Version 1.0.
 // See accompanying file LICENSE_1_0.txt or copy at
@@ -809,7 +809,8 @@ int const unknown_level = INT_MAX / 2;
 
 struct module_level_actions
 {
-    virtual void heading() = 0;
+    virtual void begin() = 0;
+    virtual void end() = 0;
 
     virtual void level_start( int level ) = 0;
     virtual void level_end( int level ) = 0;
@@ -972,7 +973,7 @@ static void output_module_level_report( module_level_actions & actions )
 
     // output report
 
-    actions.heading();
+    actions.begin();
 
     for( std::map< int, std::set< std::string > >::iterator i = reverse_level_map.begin(); i != reverse_level_map.end(); ++i )
     {
@@ -1006,15 +1007,21 @@ static void output_module_level_report( module_level_actions & actions )
 
         actions.level_end( i->first );
     }
+
+    actions.end();
 }
 
 struct module_level_txt_actions: public module_level_actions
 {
     int level_;
 
-    void heading()
+    void begin()
     {
         std::cout << "Module Levels:\n\n";
+    }
+
+    void end()
+    {
     }
 
     void level_start( int level )
@@ -1072,47 +1079,42 @@ struct module_level_html_actions: public module_level_actions
 {
     int level_;
 
-    void heading()
+    void begin()
     {
-        std::cout << "<h1>Module Levels</h1>\n";
+        std::cout << "<div id='module-levels'><h1>Module Levels</h1>\n";
+    }
+
+    void end()
+    {
+        std::cout << "</div>\n";
     }
 
     void level_start( int level )
     {
-        std::cout << "  <h2>Level ";
-
         if( level >= unknown_level )
         {
-            std::cout << "<em>undetermined</em>";
+            std::cout << "  <h2>Level <em>undetermined</em></h2>\n";
         }
         else
         {
-            std::cout << level;
+            std::cout << "  <h2 id='level:" << level << "'>Level " << level << "</h2>\n";
         }
-
-        std::cout << "</h2><ul>\n";
 
         level_ = level;
     }
 
     void level_end( int /*level*/ )
     {
-        std::cout << "  </ul>\n";
     }
 
     void module_start( std::string const & module )
     {
-        std::cout << "    <li><a href =\"" << module << ".html\">" << module << "</a><small>";
-
-        if( level_ > 0 )
-        {
-            std::cout << "<br />&#8674;";
-        }
+        std::cout << "    <h3 id='" << module << "'><a href=\"" << module << ".html\">" << module << "</a></h3><p class='primary-list'>";
     }
 
     void module_end( std::string const & /*module*/ )
     {
-        std::cout << "</small></li>\n";
+        std::cout << "</p>\n";
     }
 
     void module2( std::string const & module, int level )
@@ -1158,7 +1160,8 @@ static void output_module_level_report( bool html )
 
 struct module_overview_actions
 {
-    virtual void heading() = 0;
+    virtual void begin() = 0;
+    virtual void end() = 0;
 
     virtual void module_start( std::string const & module ) = 0;
     virtual void module_end( std::string const & module ) = 0;
@@ -1168,7 +1171,7 @@ struct module_overview_actions
 
 static void output_module_overview_report( module_overview_actions & actions )
 {
-    actions.heading();
+    actions.begin();
 
     for( std::set< std::string >::iterator i = s_modules.begin(); i != s_modules.end(); ++i )
     {
@@ -1183,15 +1186,21 @@ static void output_module_overview_report( module_overview_actions & actions )
 
         actions.module_end( *i );
     }
+
+    actions.end();
 }
 
 struct module_overview_txt_actions: public module_overview_actions
 {
     bool deps_;
 
-    void heading()
+    void begin()
     {
         std::cout << "Module Overview:\n\n";
+    }
+
+    void end()
+    {
     }
 
     void module_start( std::string const & module )
@@ -1219,32 +1228,28 @@ struct module_overview_txt_actions: public module_overview_actions
 
 struct module_overview_html_actions: public module_overview_actions
 {
-    bool deps_;
-
-    void heading()
+    void begin()
     {
-        std::cout << "<h1>Module Overview</h1>\n";
+        std::cout << "<div id='module-overview'><h1>Module Overview</h1>\n";
+    }
+
+    void end()
+    {
+        std::cout << "</div>\n";
     }
 
     void module_start( std::string const & module )
     {
-        std::cout << "  <h2><a href =\"" << module << ".html\"><em>" << module << "</em></a></h2><p><small>";
-        deps_ = false;
+        std::cout << "  <h2 id='" << module << "'><a href=\"" << module << ".html\"><em>" << module << "</em></a></h2><p class='primary-list'>";
     }
 
     void module_end( std::string const & /*module*/ )
     {
-        std::cout << "</small></p>\n";
+        std::cout << "</p>\n";
     }
 
     void module2( std::string const & module )
     {
-        if( !deps_ )
-        {
-            std::cout << "&#8674;";
-            deps_ = true;
-        }
-
         std::cout << " " << module;
     }
 };
@@ -1267,7 +1272,11 @@ static void output_module_overview_report( bool html )
 
 struct list_dependencies_actions: public module_overview_actions
 {
-    void heading()
+    void begin()
+    {
+    }
+
+    void end()
     {
     }
 
@@ -1298,19 +1307,30 @@ static void list_dependencies()
 
 //
 
-static void output_html_header( std::string const & title )
+static void output_html_header( std::string const & title, std::string const & stylesheet, std::string const & prefix )
 {
     std::cout << "<html>\n";
     std::cout << "<head>\n";
     std::cout << "<title>" << title << "</title>\n";
+
+    if( !stylesheet.empty() )
+    {
+        std::cout << "<link rel=\"stylesheet\" type=\"text/css\" href=\"" << stylesheet << "\" />\n";
+    }
+
     std::cout << "</head>\n";
     std::cout << "<body>\n";
+
+    if( !prefix.empty() )
+    {
+        std::cout << prefix << std::endl;
+    }
 }
 
 static void output_html_footer( std::string const & footer )
 {
     std::cout << "<hr />\n";
-    std::cout << "<p><small>" << footer << "</small></p>\n";
+    std::cout << "<p class=\"footer\">" << footer << "</p>\n";
     std::cout << "</body>\n";
     std::cout << "</html>\n";
 }
@@ -1355,7 +1375,8 @@ static void list_buildable()
 
 struct module_weight_actions
 {
-    virtual void heading() = 0;
+    virtual void begin() = 0;
+    virtual void end() = 0;
 
     virtual void weight_start( int weight ) = 0;
     virtual void weight_end( int weight ) = 0;
@@ -1426,7 +1447,7 @@ static void output_module_weight_report( module_weight_actions & actions )
 
     // output report
 
-    actions.heading();
+    actions.begin();
 
     for( std::map< int, std::set< std::string > >::const_iterator i = modules_by_weight.begin(); i != modules_by_weight.end(); ++i )
     {
@@ -1467,13 +1488,19 @@ static void output_module_weight_report( module_weight_actions & actions )
 
         actions.weight_end( i->first );
     }
+
+    actions.end();
 }
 
 struct module_weight_txt_actions: public module_weight_actions
 {
-    void heading()
+    void begin()
     {
         std::cout << "Module Weights:\n\n";
+    }
+
+    void end()
+    {
     }
 
     void weight_start( int weight )
@@ -1529,35 +1556,39 @@ struct module_weight_html_actions: public module_weight_actions
 {
     int weight_;
 
-    void heading()
+    void begin()
     {
-        std::cout << "<h1>Module Weights</h1>\n";
+        std::cout << "<div id='module-weights'>\n<h1>Module Weights</h1>\n";
+    }
+
+    void end()
+    {
+        std::cout << "</div>\n";
     }
 
     void weight_start( int weight )
     {
-        std::cout << "  <h2>Weight " << weight << "</h2><ul>\n";
+        std::cout << "  <h2 id='weight:" << weight << "'>Weight " << weight << "</h2>\n";
         weight_ = weight;
     }
 
     void weight_end( int /*weight*/ )
     {
-        std::cout << "  </ul>\n";
     }
 
     void module_start( std::string const & module )
     {
-        std::cout << "    <li><a href =\"" << module << ".html\">" << module << "</a><small>";
+        std::cout << "    <h3 id='" << module << "'><a href=\"" << module << ".html\">" << module << "</a></h3>";
     }
 
     void module_end( std::string const & /*module*/ )
     {
-        std::cout << "</small></li>\n";
+        std::cout << "\n";
     }
 
     void module_primary_start()
     {
-        std::cout << "<br />&#8674;";
+        std::cout << "<p class='primary-list'>";
     }
 
     void module_primary( std::string const & module, int weight )
@@ -1581,11 +1612,12 @@ struct module_weight_html_actions: public module_weight_actions
 
     void module_primary_end()
     {
+        std::cout << "</p>";
     }
 
     void module_secondary_start()
     {
-        std::cout << "<br /><span style=\"padding-left: 1em;\">&#8674;";
+        std::cout << "<p class='secondary-list'>";
     }
 
     void module_secondary( std::string const & module, int /*weight*/ )
@@ -1595,7 +1627,7 @@ struct module_weight_html_actions: public module_weight_actions
 
     void module_secondary_end()
     {
-        std::cout << "</span>";
+        std::cout << "</p>";
     }
 };
 
@@ -1643,21 +1675,9 @@ static void add_module_headers( fs::path const & dir, std::set<std::string> & he
     }
 }
 
-static void output_module_subset_report( std::string const & module, bool track_sources, bool track_tests, module_subset_actions & actions )
+static void output_module_subset_report_( std::string const & module, std::set<std::string> const & headers, module_subset_actions & actions )
 {
     // build header closure
-
-    std::set<std::string> headers = s_module_headers[ module ];
-
-    if( track_sources )
-    {
-        add_module_headers( module_source_path( module ), headers );
-    }
-
-    if( track_tests )
-    {
-        add_module_headers( module_test_path( module ), headers );
-    }
 
     // header -> (header)*
     std::map< std::string, std::set<std::string> > inc2;
@@ -1755,6 +1775,23 @@ static void output_module_subset_report( std::string const & module, bool track_
     }
 }
 
+static void output_module_subset_report( std::string const & module, bool track_sources, bool track_tests, module_subset_actions & actions )
+{
+    std::set<std::string> headers = s_module_headers[ module ];
+
+    if( track_sources )
+    {
+        add_module_headers( module_source_path( module ), headers );
+    }
+
+    if( track_tests )
+    {
+        add_module_headers( module_test_path( module ), headers );
+    }
+
+    output_module_subset_report_( module, headers, actions );
+}
+
 struct module_subset_txt_actions: public module_subset_actions
 {
     void heading( std::string const & module )
@@ -1841,6 +1878,8 @@ static void output_module_subset_report( std::string const & module, bool track_
     }
 }
 
+// --list-exceptions
+
 static void list_exceptions()
 {
     std::string lm;
@@ -1871,6 +1910,8 @@ static void list_exceptions()
         }
     }
 }
+
+// --test
 
 struct module_test_primary_actions: public module_primary_actions
 {
@@ -1917,7 +1958,7 @@ struct module_test_secondary_actions: public module_secondary_actions
     {
     }
 
-    void heading( std::string const & module )
+    void heading( std::string const & /*module*/ )
     {
     }
 
@@ -1960,6 +2001,322 @@ static void output_module_test_report( std::string const & module )
     output_module_secondary_report( module, m, a2 );
 }
 
+// --cmake
+
+struct collect_primary_dependencies: public module_primary_actions
+{
+    std::set< std::string > set_;
+
+    void heading( std::string const & )
+    {
+    }
+
+    void module_start( std::string const & module )
+    {
+        if( module == "(unknown)" ) return;
+
+        set_.insert( module );
+    }
+
+    void module_end( std::string const & /*module*/ )
+    {
+    }
+
+    void header_start( std::string const & /*header*/ )
+    {
+    }
+
+    void header_end( std::string const & /*header*/ )
+    {
+    }
+
+    void from_header( std::string const & /*header*/ )
+    {
+    }
+};
+
+static std::string module_cmake_package( std::string module )
+{
+    std::replace( module.begin(), module.end(), '~', '_' );
+    return "boost_" + module;
+}
+
+static std::string module_cmake_target( std::string module )
+{
+    std::replace( module.begin(), module.end(), '~', '_' );
+    return "boost::" + module;
+}
+
+static void output_module_cmake_report( std::string module )
+{
+    std::replace( module.begin(), module.end(), '/', '~' );
+
+    std::cout << "# Generated file. Do not edit.\n\n";
+
+    collect_primary_dependencies a1;
+    output_module_primary_report( module, a1, false, false );
+
+    if( !fs::exists( module_source_path( module ) ) )
+    {
+        for( std::set< std::string >::const_iterator i = a1.set_.begin(); i != a1.set_.end(); ++i )
+        {
+            std::cout << "boost_declare_dependency(" << module_cmake_package( *i ) << " INTERFACE " << module_cmake_target( *i ) << ")\n";
+        }
+    }
+    else
+    {
+        collect_primary_dependencies a2;
+        output_module_primary_report( module, a2, true, false );
+
+        for( std::set< std::string >::const_iterator i = a1.set_.begin(); i != a1.set_.end(); ++i )
+        {
+            a2.set_.erase( *i );
+            std::cout << "boost_declare_dependency(" << module_cmake_package( *i ) << " PUBLIC " << module_cmake_target( *i ) << ")\n";
+        }
+
+        std::cout << "\n";
+
+        for( std::set< std::string >::const_iterator i = a2.set_.begin(); i != a2.set_.end(); ++i )
+        {
+            std::cout << "boost_declare_dependency(" << module_cmake_package( *i ) << " PRIVATE " << module_cmake_target( *i ) << ")\n";
+        }
+    }
+}
+
+// --list-missing-headers
+
+struct missing_header_actions: public module_primary_actions
+{
+    std::string module_, module2_;
+
+    void heading( std::string const & module )
+    {
+        module_ = module;
+    }
+
+    void module_start( std::string const & module )
+    {
+        module2_ = module;
+    }
+
+    void module_end( std::string const & /*module*/ )
+    {
+    }
+
+    void header_start( std::string const & header )
+    {
+        if( module2_ == "(unknown)" )
+        {
+            if( !module_.empty() )
+            {
+                std::cout << module_ << ":\n";
+                module_.clear();
+            }
+
+            std::cout << "    <" << header << ">\n";
+        }
+    }
+
+    void header_end( std::string const & /*header*/ )
+    {
+    }
+
+    void from_header( std::string const & header )
+    {
+        if( module2_ == "(unknown)" )
+        {
+            std::cout << "        from <" << header << ">\n";
+        }
+    }
+};
+
+static void list_missing_headers( std::string const & module )
+{
+    missing_header_actions a;
+    output_module_primary_report( module, a, false, false );
+}
+
+static void list_missing_headers()
+{
+    for( std::set< std::string >::const_iterator i = s_modules.begin(); i != s_modules.end(); ++i )
+    {
+        list_missing_headers( *i );
+    }
+}
+
+// --pkgconfig
+
+struct primary_pkgconfig_actions: public module_primary_actions
+{
+    std::string version_;
+    std::string list_;
+
+    void heading( std::string const & )
+    {
+    }
+
+    void module_start( std::string const & module )
+    {
+        if( module == "(unknown)" ) return;
+
+        std::string m2( module );
+        std::replace( m2.begin(), m2.end(), '~', '_' );
+
+        if( !list_.empty() )
+        {
+            list_ += ", ";
+        }
+
+        list_ += "boost_" + m2 + " = " + version_;
+    }
+
+    void module_end( std::string const & )
+    {
+    }
+
+    void header_start( std::string const & )
+    {
+    }
+
+    void header_end( std::string const & )
+    {
+    }
+
+    void from_header( std::string const & )
+    {
+    }
+};
+
+static void output_requires( std::string const & section, std::string const & version, std::set< std::string > const & s )
+{
+    bool first = true;
+
+    for( std::set< std::string >::const_iterator i = s.begin(); i != s.end(); ++i )
+    {
+        if( first )
+        {
+            std::cout << section << ": ";
+            first = false;
+        }
+        else
+        {
+            std::cout << ", ";
+        }
+
+        std::string m2( *i );
+        std::replace( m2.begin(), m2.end(), '~', '_' );
+
+        std::cout << "boost_" << m2 << " = " << version;
+    }
+}
+
+static void output_pkgconfig( std::string const & module, std::string const & version, int argc, char const* argv[] )
+{
+    for( int i = 0; i < argc; ++i )
+    {
+        std::cout << argv[ i ] << '\n';
+    }
+
+    std::cout << '\n';
+
+    std::string m2( module );
+    std::replace( m2.begin(), m2.end(), '/', '_' );
+
+    std::string m3( module );
+    std::replace( m3.begin(), m3.end(), '/', '~' );
+
+    std::cout << "Name: boost_" << module << '\n';
+    std::cout << "Description: Boost C++ library '" << module << "'\n";
+    std::cout << "Version: " << version << '\n';
+    std::cout << "URL: http://www.boost.org/libs/" << module << '\n';
+    std::cout << "Cflags: -I${includedir}\n";
+
+    if( fs::exists( module_build_path( module ) ) && fs::exists( module_source_path( module ) ) )
+    {
+        std::cout << "Libs: -L${libdir} -lboost_" << m2 << "\n";
+    }
+
+    collect_primary_dependencies a1;
+    output_module_primary_report( m3, a1, false, false );
+
+    if( !a1.set_.empty() )
+    {
+        output_requires( "Requires", version, a1.set_ );
+        std::cout << std::endl;
+    }
+
+    collect_primary_dependencies a2;
+    output_module_primary_report( m3, a2, true, false );
+
+    for( std::set< std::string >::const_iterator i = a1.set_.begin(); i != a1.set_.end(); ++i )
+    {
+        a2.set_.erase( *i );
+    }
+
+    if( !a2.set_.empty() )
+    {
+        output_requires( "Requires.private", version, a2.set_ );
+        std::cout << std::endl;
+    }
+}
+
+// --subset-for
+
+static void output_directory_subset_report( std::string const & module, std::set<std::string> const & headers, bool html )
+{
+    for( std::set<std::string>::const_iterator i = headers.begin(); i != headers.end(); ++i )
+    {
+        std::map< std::string, std::set< std::string > > deps;
+        std::map< std::string, std::set< std::string > > from;
+
+        std::ifstream is( i->c_str() );
+        scan_header_dependencies( *i, is, deps, from );
+
+        for( std::map< std::string, std::set< std::string > >::const_iterator j = from.begin(); j != from.end(); ++j )
+        {
+            for( std::set<std::string>::const_iterator k = j->second.begin(); k != j->second.end(); ++k )
+            {
+                s_header_includes[ *k ].insert( j->first );
+            }
+        }
+    }
+
+    if( html )
+    {
+        module_subset_html_actions actions;
+        output_module_subset_report_( module, headers, actions );
+    }
+    else
+    {
+        module_subset_txt_actions actions;
+        output_module_subset_report_( module, headers, actions );
+    }
+}
+
+//
+
+static bool find_boost_root()
+{
+    for( int i = 0; i < 32; ++i )
+    {
+        if( fs::exists( "Jamroot" ) )
+        {
+            return true;
+        }
+
+        fs::path p = fs::current_path();
+
+        if( p == p.root_path() )
+        {
+            return false;
+        }
+
+        fs::current_path( p.parent_path() );
+    }
+
+    return false;
+}
+
 int main( int argc, char const* argv[] )
 {
     if( argc < 2 )
@@ -1972,6 +2329,7 @@ int main( int argc, char const* argv[] )
             "    boostdep --list-buildable\n"
             "    boostdep [--track-sources] [--track-tests] --list-dependencies\n"
             "    boostdep --list-exceptions\n"
+            "    boostdep --list-missing-headers\n"
             "\n"
             "    boostdep [options] --module-overview\n"
             "    boostdep [options] --module-levels\n"
@@ -1983,11 +2341,22 @@ int main( int argc, char const* argv[] )
             "    boostdep [options] --subset <module>\n"
             "    boostdep [options] [--header] <header>\n"
             "    boostdep --test <module>\n"
+            "    boostdep --cmake <module>\n"
+            "    boostdep --pkgconfig <module> <version> [<var>=<value>] [<var>=<value>]...\n"
+            "    boostdep [options] --subset-for <directory>\n"
             "\n"
             "    [options]: [--[no-]track-sources] [--[no-]track-tests]\n"
-            "               [--title <title>] [--footer <footer>] [--html]\n";
+            "               [--html-title <title>] [--html-footer <footer>]\n"
+            "               [--html-stylesheet <stylesheet>] [--html-prefix <prefix>]\n"
+            "               [--html]\n";
 
         return -1;
+    }
+
+    if( !find_boost_root() )
+    {
+        std::cerr << "boostdep: Could not find Boost root.\n";
+        return -2;
     }
 
     try
@@ -2004,8 +2373,10 @@ int main( int argc, char const* argv[] )
     bool track_sources = false;
     bool track_tests = false;
 
-    std::string title = "Boost Dependency Report";
-    std::string footer;
+    std::string html_title = "Boost Dependency Report";
+    std::string html_footer;
+    std::string html_stylesheet;
+    std::string html_prefix;
 
     for( int i = 1; i < argc; ++i )
     {
@@ -2019,18 +2390,32 @@ int main( int argc, char const* argv[] )
         {
             list_buildable();
         }
-        else if( option == "--title" )
+        else if( option == "--title" || option == "--html-title" )
         {
             if( i + 1 < argc )
             {
-                title = argv[ ++i ];
+                html_title = argv[ ++i ];
             }
         }
-        else if( option == "--footer" )
+        else if( option == "--footer" || option == "--html-footer" )
         {
             if( i + 1 < argc )
             {
-                footer = argv[ ++i ];
+                html_footer = argv[ ++i ];
+            }
+        }
+        else if( option == "--html-stylesheet" )
+        {
+            if( i + 1 < argc )
+            {
+                html_stylesheet = argv[ ++i ];
+            }
+        }
+        else if( option == "--html-prefix" )
+        {
+            if( i + 1 < argc )
+            {
+                html_prefix = argv[ ++i ];
             }
         }
         else if( option == "--html" )
@@ -2038,7 +2423,7 @@ int main( int argc, char const* argv[] )
             if( !html )
             {
                 html = true;
-                output_html_header( title );
+                output_html_header( html_title, html_stylesheet, html_prefix );
             }
         }
         else if( option == "--track-sources" )
@@ -2103,6 +2488,13 @@ int main( int argc, char const* argv[] )
                 output_module_test_report( argv[ ++i ] );
             }
         }
+        else if( option == "--cmake" )
+        {
+            if( i + 1 < argc )
+            {
+                output_module_cmake_report( argv[ ++i ] );
+            }
+        }
         else if( option == "--module-levels" )
         {
             enable_secondary( secondary, track_sources, track_tests );
@@ -2127,6 +2519,48 @@ int main( int argc, char const* argv[] )
         {
             list_exceptions();
         }
+        else if( option == "--list-missing-headers" )
+        {
+            list_missing_headers();
+        }
+        else if( option == "--pkgconfig" )
+        {
+            if( i + 2 < argc )
+            {
+                std::string module = argv[ ++i ];
+                std::string version = argv[ ++i ];
+
+                ++i;
+
+                output_pkgconfig( module, version, argc - i, argv + i );
+            }
+            else
+            {
+                std::cerr << "'" << option << "': missing module or version.\n";
+            }
+
+            break;
+        }
+        else if( option == "--subset-for" )
+        {
+            if( i + 1 < argc )
+            {
+                std::string module = argv[ ++i ];
+
+                enable_secondary( secondary, track_sources, track_tests );
+
+                std::set<std::string> headers;
+                add_module_headers( module, headers );
+
+                output_directory_subset_report( module, headers, html );
+            }
+            else
+            {
+                std::cerr << "'" << option << "': missing argument.\n";
+            }
+
+            break;
+        }
         else if( s_modules.count( option ) )
         {
             output_module_primary_report( option, html, track_sources, track_tests );
@@ -2144,6 +2578,6 @@ int main( int argc, char const* argv[] )
 
     if( html )
     {
-        output_html_footer( footer );
+        output_html_footer( html_footer );
     }
 }
