@@ -18,6 +18,19 @@ level UI code and client library.
 Head on over to [iCompleteMe](https://github.com/jerrymarino/icompleteme) to
 get up and running.
 
+## emacs-ycmd
+
+Support for icmd / SwiftySwiftVim has now been merged into [emacs-ycmd](https://github.com/abingham/emacs-ycmd). To get it working you can use the following:
+
+```Emacs Lisp
+(setq ycmd-server-command `(,(file-truename "~/.pyenv/shims/python")
+                            ,(file-truename "~/.icmd/ycmd")))
+(add-hook 'swift-mode-hook #'ycmd-mode)
+(add-hook 'company-mode-hook #'company-ycmd-setup)
+```
+
+where `~/.icmd` points to your [icmd](https://github.com/jerrymarino/icmd) installation.
+
 ### Compilation Database
 
 By default, it provides a basic level of completion support: completions within
