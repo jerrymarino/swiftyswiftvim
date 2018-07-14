@@ -38,5 +38,10 @@ public:
   DiagnosticsForFile(const std::string &filename,
                      const std::vector<UnsavedFile> &unsavedFiles,
                      const std::vector<std::string> &flags);
+
+  const std::string
+  CursorInfoForLocationInFile(const std::string &filename, int line, int column,
+                              const std::vector<UnsavedFile> &unsavedFiles,
+                              const std::vector<std::string> &flags);
 };
 } // namespace ssvim

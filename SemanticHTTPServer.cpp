@@ -68,6 +68,7 @@ EndpointImpl makeSlowTestEndpoint();
 EndpointImpl makeStatusEndpoint();
 EndpointImpl makeShutdownEndpoint();
 EndpointImpl makeCompletionsEndpoint();
+EndpointImpl makeCursorInfoEndpoint();
 EndpointImpl makeDiagnosticsEndpoint();
 
 response<string_body> notFoundResponse(req_type request);
@@ -104,6 +105,7 @@ public:
     insert_endpoint("/status", makeStatusEndpoint());
     insert_endpoint("/shutdown", makeShutdownEndpoint());
     insert_endpoint("/completions", makeCompletionsEndpoint());
+    insert_endpoint("/cursorinfo", makeCursorInfoEndpoint());
     insert_endpoint("/diagnostics", makeDiagnosticsEndpoint());
     insert_endpoint("/slow_test", makeSlowTestEndpoint());
   }
@@ -319,6 +321,53 @@ EndpointImpl makeCompletionsEndpoint() {
         fileName, line, column, files, flags);
 
     logger << "GOT_CANDIDATES";
+    session->logger().log(LogLevelExtreme, candidates);
+    // Build out response
+    response<string_body> res;
+    res.status = 200;
+    res.version = session->request().version;
+    res.fields.insert(HeaderKeyServer, HeaderValueServer);
+    res.fields.insert(HeaderKeyContentType, HeaderValueContentTypeJSON);
+    res.body = candidates;
+    prepare(res);
+    session->write(res);
+  });
+}
+
+EndpointImpl makeCursorInfoEndpoint() {
+  return EndpointImpl([&](std::shared_ptr<Session> session) {
+    // Parse in data
+    auto logger = session->logger();
+    auto bodyString = session->request().body;
+    logger << bodyString;
+    auto bodyJSON = readJSONPostBody(bodyString);
+
+    auto fileName = bodyJSON.get<std::string>("file_name");
+    auto column = bodyJSON.get<int>("column");
+    auto line = bodyJSON.get<int>("line");
+    auto contents = bodyJSON.get<std::string>("contents");
+    auto flags = as_vector<std::string>(bodyJSON, "flags");
+    logger << "file_name:" << fileName;
+    logger << "column:" << column;
+    logger << "line:" << line;
+    for (auto &f : flags) {
+      logger << "flags:" << f;
+    }
+
+    using namespace ssvim;
+    SwiftCompleter completer(session->logger().level());
+
+    auto files = std::vector<UnsavedFile>();
+    auto unsaved = UnsavedFile();
+    unsaved.contents = contents;
+    unsaved.fileName = fileName;
+    files.push_back(unsaved);
+
+    logger << "SEND_REQ";
+    auto candidates = completer.CursorInfoForLocationInFile(
+        fileName, line, column, files, flags);
+
+    logger << "GOT_RES";
     session->logger().log(LogLevelExtreme, candidates);
     // Build out response
     response<string_body> res;

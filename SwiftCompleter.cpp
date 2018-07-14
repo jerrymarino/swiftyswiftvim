@@ -105,9 +105,8 @@ struct CompletionContext {
 
   std::vector<std::string> DefaultOSXArgs() {
     return {
-        "-sdk",
-        "/Applications/Xcode.app/Contents/Developer/Platforms/"
-        "MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+        "-sdk", "/Applications/Xcode.app/Contents/Developer/Platforms/"
+                "MacOSX.platform/Developer/SDKs/MacOSX.sdk",
         "-target", "x86_64-apple-macosx10.12",
     };
   }
@@ -122,6 +121,7 @@ public:
   int CompletionOpen(CompletionContext &ctx, char **oresponse);
   int EditorOpen(CompletionContext &ctx, char **oresponse);
   int EditorReplaceText(CompletionContext &ctx, char **oresponse);
+  int GetCursorInfo(CompletionContext &ctx, char **oresponse);
 };
 } // namespace ssvim
 
@@ -269,8 +269,8 @@ using namespace ssvim;
 //
 // This seemed necessary on Swift V2 when it was first written, but hopefully
 // it can be improved.
-static void GetOffset(CompletionContext &ctx, unsigned *offset,
-                      std::string *CleanFile) {
+static void GetCompletionOffset(CompletionContext &ctx, unsigned *offset,
+                                std::string *CleanFile) {
   auto line = ctx.line;
   auto column = ctx.column;
   auto fileName = ctx.sourceFilename;
@@ -319,6 +319,36 @@ static void GetOffset(CompletionContext &ctx, unsigned *offset,
   }
 }
 
+// Get the offset for a given column, line
+static void GetOffset(CompletionContext &ctx, unsigned *offset) {
+  auto line = ctx.line;
+  auto fileName = ctx.sourceFilename;
+  std::string unsavedInput;
+
+  for (auto unsavedFile : ctx.unsavedFiles) {
+    if (unsavedFile.fileName == fileName) {
+      unsavedInput = unsavedFile.contents;
+      break;
+    }
+  }
+
+  assert(unsavedInput.length() && "Missing unsaved file");
+
+  std::istringstream sourceFile(unsavedInput);
+  std::string someLine;
+  unsigned ct = 0;
+  unsigned currentLine = 0;
+  while (std::getline(sourceFile, someLine)) {
+    ct += someLine.length();
+    if (currentLine == line) {
+      *offset = ct;
+      return;
+    } else {
+      currentLine++;
+    }
+  }
+}
+
 SourceKitService::SourceKitService(ssvim::LogLevel logLevel)
     : _logger(logLevel, "SKT") {
   // Initialize SourceKitD resource
@@ -352,7 +382,7 @@ int SourceKitService::CompletionUpdate(CompletionContext &ctx,
       sourcekitd_uid_get_from_cstr("source.request.codecomplete.update");
   unsigned CodeCompletionOffset = 0;
   std::string CleanFile;
-  GetOffset(ctx, &CodeCompletionOffset, &CleanFile);
+  GetCompletionOffset(ctx, &CodeCompletionOffset, &CleanFile);
 
   bool isError = CodeCompleteRequest(
       RequestCodeCompleteUpdate, ctx.sourceFilename.data(),
@@ -376,7 +406,7 @@ int SourceKitService::CompletionOpen(CompletionContext &ctx, char **oresponse) {
       sourcekitd_uid_get_from_cstr("source.request.codecomplete.open");
   unsigned CodeCompletionOffset = 0;
   std::string CleanFile;
-  GetOffset(ctx, &CodeCompletionOffset, &CleanFile);
+  GetCompletionOffset(ctx, &CodeCompletionOffset, &CleanFile);
 
   bool isError = CodeCompleteRequest(
       RequestCodeCompleteOpen, ctx.sourceFilename.data(), CodeCompletionOffset,
@@ -434,6 +464,41 @@ int SourceKitService::EditorReplaceText(CompletionContext &ctx,
         return false;
       });
   _logger << "DID_EDITOR_REPLACETEXT";
+  return isError;
+}
+
+int SourceKitService::GetCursorInfo(CompletionContext &ctx, char **oresponse) {
+  std::cout << "WILL_DECL_OPEN";
+  sourcekitd_uid_t RequestCursorInfo =
+      sourcekitd_uid_get_from_cstr("source.request.cursorinfo");
+  unsigned Offset = 0;
+  GetOffset(ctx, &Offset);
+
+  auto fileName = ctx.sourceFilename;
+  std::string unsavedInput;
+  for (auto unsavedFile : ctx.unsavedFiles) {
+    if (unsavedFile.fileName == fileName) {
+      unsavedInput = unsavedFile.contents;
+      break;
+    }
+  }
+
+  bool isError = CodeCompleteRequest(
+      RequestCursorInfo, ctx.sourceFilename.data(), Offset,
+      unsavedInput.c_str(), ctx.compilerArgs(), nullptr,
+      [&](sourcekitd_object_t response) -> bool {
+        if (sourcekitd_response_is_error(response)) {
+          return true;
+        }
+        *oresponse = PrintResponse(response);
+        _logger.log(LogLevelExtreme, *oresponse);
+        return false;
+      });
+
+  if (isError) {
+    _logger << "DID_DECL_OPEN_IS_ERROR";
+  }
+  std::cout << "DID_DECL_OPEN";
   return isError;
 }
 
@@ -519,5 +584,30 @@ SwiftCompleter::DiagnosticsForFile(const std::string &filename,
   auto future = SemaFutureChannel.future(filename);
   auto semaresult = future.get();
   return semaresult;
+}
+
+const std::string SwiftCompleter::CursorInfoForLocationInFile(const std::string &filename,
+    int line,
+    int column,
+    const std::vector<UnsavedFile> &unsavedFiles,
+    const std::vector<std::string> &flags) {
+  CompletionContext ctx;
+  ctx.sourceFilename = filename;
+  ctx.line = line;
+  ctx.column = column;
+  ctx.unsavedFiles = unsavedFiles;
+  ctx.flags = flags;
+
+  SourceKitService sktService(_logger.level());
+  char *response = NULL;
+  sktService.GetCursorInfo(ctx, &response);
+  if (response == NULL) {
+    // FIXME: Propagate SourceKitService Errors
+    static auto EmptyResponse = "{ 'key.results':[] }";
+    _logger << "Empty response";
+    return EmptyResponse;
+  }
+
+  return response;
 }
 } // namespace ssvim
