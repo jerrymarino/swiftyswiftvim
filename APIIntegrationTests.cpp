@@ -158,6 +158,25 @@ public:
     assert(res.status == 200);
   }
 
+  void testSuccessfulCursorInfo() {
+    auto exampleDir = GetExamplesDir();
+    auto exampleName = exampleDir + std::string("some_swift.swift");
+    auto example = ReadFile(exampleName);
+    std::vector<std::string> flags;
+    flags.push_back("-sdk");
+    flags.push_back("/Applications/Xcode.app/Contents/Developer/Platforms/"
+                    "MacOSX.platform/Developer/SDKs/MacOSX.sdk");
+    flags.push_back("-target");
+    flags.push_back("x86_64-apple-macosx10.12");
+
+    using namespace ssvim::ResultStatus;
+    auto body = MakeCompletionPostBody(19, 15, exampleName, example, flags);
+    auto responseValue = PostRequest(_boundPort, "/cursorinfo", body);
+    auto res = Get<response<string_body>>(responseValue);
+    assert(res.body.length() > 0);
+    assert(res.status == 200);
+  }
+
   void testStatus() {
     using namespace ssvim::ResultStatus;
     auto responseValue = PostRequest(_boundPort, "/status", "");
@@ -207,7 +226,9 @@ int main(int, char const *[]) {
   auto startCmd = std::string("`./build/http_server");
   startCmd += " --port ";
   startCmd += boundPort;
+  startCmd += " --log DEBUG";
   startCmd += " >/dev/null`&";
+
 
   // Startup the service
   int started = system(startCmd.c_str());
@@ -225,6 +246,8 @@ int main(int, char const *[]) {
 
   std::cout << "testSuccessfulCompletion" << std::endl;
   suite.testSuccessfulCompletion();
+  std::cout << "testSuccessfulCursorInfo" << std::endl;
+  suite.testSuccessfulCursorInfo();
 
   // TODO:
   // std::cout << "testRunningAfterGarbageJSON" << std::endl;

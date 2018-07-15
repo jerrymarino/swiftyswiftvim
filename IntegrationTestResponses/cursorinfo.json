@@ -1,0 +1,13 @@
+{
+  key.kind: source.lang.swift.ref.var.local,
+  key.name: "self",
+  key.usr: "s:10some_swift7MySwiftC15anotherFunctionyyF4selfL_ACvp",
+  key.filepath: "/Users/jerrymarino/.vim/bundle/iCompleteMe/third_party/icmd/third_party/swiftyswiftvim/Examples/some_swift.swift",
+  key.offset: 357,
+  key.length: 4,
+  key.typename: "MySwift",
+  key.annotated_decl: "<Declaration>let `self`: <Type usr=\"c:@M@some_swift@objc(cs)MySwift\">MySwift</Type></Declaration>",
+  key.fully_annotated_decl: "<decl.var.parameter><syntaxtype.keyword>let</syntaxtype.keyword> <decl.var.parameter.name>`self`</decl.var.parameter.name>: <decl.var.parameter.type><ref.class usr=\"c:@M@some_swift@objc(cs)MySwift\">MySwift</ref.class></decl.var.parameter.type></decl.var.parameter>",
+  key.typeusr: "_T010some_swift7MySwiftCD",
+  key.parent_loc: 357
+}
